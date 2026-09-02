@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "composition_owner":   { "type": "string", "description": "Current controlling publisher or administrator of the underlying composition (the written work), as of today" },
+    "publisher_of_record": { "type": "string", "description": "Publisher of record named by a PRO or registry entry; may differ from the current administrator" },
+    "songwriters":         { "type": "array", "items": { "type": "string" }, "description": "Credited writers of the composition" },
+    "master_owner":        { "type": "string", "description": "Owner of this specific sound recording; differs from the composition owner, especially for cover recordings" },
+    "is_cover":            { "type": "boolean", "description": "True if the recording used is a cover, not the original master" },
+    "catalog_transfers":   {
+      "type": "array",
+      "description": "Every ownership hop found, oldest first. Trace acquisitions forward to today's controller.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from":       { "type": "string" },
+          "to":         { "type": "string" },
+          "year":       { "type": "integer" },
+          "chain":      { "type": "string", "description": "composition | master" },
+          "source_url": { "type": "string" }
+        },
+        "required": ["from", "to", "source_url"]
+      }
+    },
+    "litigation_signals":  {
+      "type": "array",
+      "description": "Disputes, suits, probate or estate contests touching either chain. Any entry forces a RED risk state.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "summary":    { "type": "string" },
+          "status":     { "type": "string", "description": "filed | pending | settled | dismissed | unknown" },
+          "parties":    { "type": "array", "items": { "type": "string" } },
+          "filed_date": { "type": "string" },
+          "source_url": { "type": "string" }
+        },
+        "required": ["summary", "source_url"]
+      }
+    },
+    "conflicting_sources": { "type": "boolean", "description": "True when sources disagree about control. Never silently resolve a conflict — report both." },
+    "conflict_note":       { "type": "string", "description": "If conflicting_sources is true, state each position and which source supports it" },
+    "unresolved_questions":{ "type": "array", "items": { "type": "string" }, "description": "What could not be established from public sources" },
+    "confidence":          { "type": "number", "description": "0.0-1.0 confidence that both chains are correctly identified as of today" }
+  },
+  "required": ["composition_owner", "master_owner", "confidence"]
+}

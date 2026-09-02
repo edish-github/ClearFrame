@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "Every third-party clearable element found. Extraction only — no rights conclusions.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type":        { "type": "string", "enum": ["music_cue","lyric_quote","brand","artwork","likeness","footage","location","font"] },
+          "title":       { "type": "string", "description": "Short identifying label, e.g. 'Blue Hour (cover) - montage'" },
+          "description": { "type": "string", "description": "What is literally on the page or in frame, in one or two sentences" },
+          "scene":       { "type": "string", "description": "Scene number or slug line as written" },
+          "page":        { "type": "integer", "description": "Script page, when the source is a script" },
+          "frame_in":    { "type": "integer" },
+          "frame_out":   { "type": "integer" },
+          "prominence":  { "type": "string", "enum": ["background","featured","hero"] },
+          "attrs":       {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Type-specific detail lifted verbatim from the source",
+            "properties": {
+              "song_title":   { "type": "string" },
+              "artist":       { "type": "string" },
+              "is_cover":     { "type": "boolean" },
+              "performed_by": { "type": "string" },
+              "mark":         { "type": "string" },
+              "person_name":  { "type": "string" },
+              "work_title":   { "type": "string" },
+              "creator":      { "type": "string" },
+              "source_note":  { "type": "string" },
+              "quoted_text":  { "type": "string" }
+            }
+          }
+        },
+        "required": ["type", "title", "description", "prominence"]
+      }
+    },
+    "notes": { "type": "string", "description": "Anything ambiguous the coordinator should look at" }
+  },
+  "required": ["items"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@clearframe/contracts",
+  "version": "0.1.0",
+  "description": "ClearFrame shared domain contracts — generated from the Python source of truth",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": ["src"],
+  "scripts": {
+    "generate": "cd ../../.. && uv run python scripts/export_ts_contracts.py",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
