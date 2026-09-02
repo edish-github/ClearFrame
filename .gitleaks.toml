@@ -1,0 +1,36 @@
+# ClearFrame secret scanning.
+#
+# One real risk in this repository: a Parallel API key or a webhook signing
+# secret pasted into .env, a notebook, or a doc. Everything else is public.
+
+title = "ClearFrame"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "parallel-api-key"
+description = "Parallel API key"
+regex = '''(?i)\b(pk_live_[a-z0-9]{16,}|parallel[_-]?api[_-]?key\s*[:=]\s*['"]?[a-z0-9_\-]{20,})'''
+tags = ["key", "parallel"]
+
+[[rules]]
+id = "standard-webhook-secret"
+description = "Standard Webhooks signing secret"
+regex = '''whsec_[A-Za-z0-9+/=]{20,}'''
+tags = ["secret", "webhook"]
+
+[allowlist]
+description = "Documentation, examples, and test doubles"
+paths = [
+  '''\.env\.example$''',
+  '''^docs/''',
+  '''^docs%asset/''',
+  '''^tests/''',
+  '''^demo/''',
+]
+regexes = [
+  # The test suite's fixed, non-secret signing key.
+  '''whsec_dGVzdHNlY3JldHRlc3RzZWNyZXQ=''',
+  '''test-key-not-a-real-secret''',
+]
