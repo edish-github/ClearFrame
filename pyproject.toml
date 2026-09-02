@@ -1,7 +1,79 @@
 [project]
 name = "clearframe"
 version = "0.1.0"
-description = "Add your description here"
+description = "ClearFrame — autonomous clearance & chain-of-title engine"
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.11"
+dependencies = [
+    "clearframe-contracts",
+    "clearframe-runtime",
+    "clearframe-adapter",
+    "clearframe-ledger",
+    "clearframe-webhook",
+    "clearframe-renderer",
+    "clearframe-orch",
+]
+
+[project.optional-dependencies]
+# The reasoning plane. Needed to run a real pass; not needed for the test suite.
+gemini = ["google-genai>=1.0"]
+# The Google Cloud data plane. Not needed in local mode.
+gcp = [
+  "google-cloud-firestore>=2.16",
+  "google-cloud-pubsub>=2.21",
+  "google-cloud-bigquery>=3.20",
+  "google-cloud-storage>=2.16",
+  "google-cloud-secret-manager>=2.20",
+  "google-cloud-discoveryengine>=0.11",
+]
+# PDF output for the E&O report. HTML renders without it.
+pdf = ["weasyprint>=62"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.6",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/contracts",
+    "packages/runtime",
+    "services/parallel-adapter",
+    "services/ledger-api",
+    "services/webhook-receiver",
+    "services/report-renderer",
+    "orchestrator",
+]
+
+[tool.uv.sources]
+clearframe-contracts = { workspace = true }
+clearframe-runtime   = { workspace = true }
+clearframe-adapter   = { workspace = true }
+clearframe-ledger    = { workspace = true }
+clearframe-webhook   = { workspace = true }
+clearframe-renderer  = { workspace = true }
+clearframe-orch      = { workspace = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["packages", "services", "orchestrator", "tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# This ruff version formats Python fences inside Markdown. Keep it away from prose:
+# reference documents are authored elsewhere and must round-trip byte-for-byte.
+extend-exclude = ["docs%asset", "*.md", ".local"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+  "E501",   # line length is handled by the formatter
+  "UP042",  # `str, Enum` is deliberate: pydantic and JSON serialisation both want it
+  "B008",   # FastAPI's Depends()/File() in defaults is the framework's own idiom
+]
