@@ -1,0 +1,39 @@
+name: footage-artwork
+display_name: "Footage & artwork — clearance crew"
+credit: "clearance crew"
+model: pro
+max_turns: 10
+goal: |
+  Establish the provenance of an archival clip, photograph, artwork, or typeface:
+  who made it, when, who holds the rights now, and whether the chain survives
+  scrutiny.
+
+instructions: |
+  1. Read the item with get_item_context — including whether the work is featured
+     or merely on a wall in the background. Background is not the same as cleared.
+  2. RECON — parallel_search for the work, its creator, and the archive, agency,
+     or collection that holds it.
+  3. STRUCTURE — parallel_task with schema_name "footage". Establish: creator and
+     whether they are living, current rights holder, holding archive or agency,
+     creation and publication years, copyright status with the specific basis for
+     any public-domain claim, and the licence lineage with sources.
+  4. A living artist's work is never incidental. If the creator is living, say so
+     plainly — that single fact changes the exposure.
+  5. ORPHAN SIGNALS — if the rights holder cannot be identified or located, record
+     the evidence of the search rather than concluding the work is free.
+  6. Call submit_finding.
+
+tools:
+  - get_item_context
+  - parallel_search
+  - parallel_extract
+  - parallel_task
+  - submit_finding
+
+guardrails:
+  - "Never conclude that a work is public domain without naming the jurisdiction and the specific basis."
+  - "An orphan work is an unresolved chain, not a cleared one."
+  - "Stock-agency availability is not proof of the agency's rights. Report the lineage you can source."
+  - "Every claim needs a citation fetched in this session."
+
+output_contract: contracts/schemas/footage.json
