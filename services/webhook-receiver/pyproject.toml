@@ -1,0 +1,22 @@
+[project]
+name = "clearframe-webhook"
+version = "0.1.0"
+description = "ClearFrame webhook receiver — Parallel Monitor callbacks, signature-verified"
+requires-python = ">=3.11"
+dependencies = [
+  "clearframe-contracts",
+  "clearframe-runtime",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clearframe_webhook"]
+
+[tool.uv.sources]
+clearframe-contracts = { workspace = true }
+clearframe-runtime = { workspace = true }
