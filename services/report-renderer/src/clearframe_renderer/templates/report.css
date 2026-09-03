@@ -1,0 +1,58 @@
+/* Deliberately conservative: an underwriter should recognise this document. */
+@page { size: A4; margin: 20mm 16mm; @bottom-right { content: counter(page); } }
+
+:root {
+  --ink: #14171a;
+  --muted: #5c6570;
+  --rule: #d5dae0;
+  --green: #1f7a4d;
+  --amber: #a4690a;
+  --red: #b0202f;
+}
+
+body {
+  font-family: "Iowan Old Style", "Charter", Georgia, serif;
+  color: var(--ink); font-size: 10.5pt; line-height: 1.45; margin: 0;
+}
+h1 { font-size: 21pt; margin: 0 0 2mm; letter-spacing: -0.01em; }
+h2 { font-size: 13pt; margin: 9mm 0 3mm; padding-bottom: 1.5mm;
+     border-bottom: 1px solid var(--rule); page-break-after: avoid; }
+h3 { font-size: 11pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 0 0 2.5mm; }
+a { color: var(--ink); }
+
+.cover { border-bottom: 2px solid var(--ink); padding-bottom: 6mm; margin-bottom: 6mm; }
+.kicker { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8pt;
+          letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.meta { width: 100%; border-collapse: collapse; margin-top: 4mm; }
+.meta td { padding: 1.2mm 0; vertical-align: top; }
+.meta td:first-child { width: 42mm; color: var(--muted); }
+
+table.register { width: 100%; border-collapse: collapse; font-size: 8.6pt; }
+table.register th { text-align: left; border-bottom: 1px solid var(--ink);
+                    padding: 1.6mm 2mm 1.6mm 0; }
+table.register td { border-bottom: 1px solid var(--rule); padding: 1.4mm 2mm 1.4mm 0;
+                    vertical-align: top; }
+
+.risk { font-weight: 700; font-size: 8pt; letter-spacing: 0.06em; text-transform: uppercase; }
+.risk-green { color: var(--green); }
+.risk-amber { color: var(--amber); }
+.risk-red   { color: var(--red); }
+.risk-unknown { color: var(--muted); }
+
+.item { page-break-inside: avoid; margin-bottom: 6mm; }
+.claim { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8pt;
+         background: #f6f7f9; padding: 2.5mm 3mm; white-space: pre-wrap;
+         border-left: 2px solid var(--rule); }
+.cites { list-style: none; padding: 0; margin: 2mm 0 0; font-size: 8.4pt; }
+.cites li { margin-bottom: 1.2mm; word-break: break-all; }
+.authority { font-family: ui-monospace, Menlo, monospace; font-size: 7.2pt;
+             text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+             border: 1px solid var(--rule); padding: 0 1mm; border-radius: 2px; }
+.challenge { border-left: 2px solid var(--amber); padding: 1.5mm 0 1.5mm 3mm;
+             margin: 2mm 0; font-size: 9pt; }
+.disclaimer { font-size: 8.4pt; color: var(--muted); font-style: italic;
+              border-top: 1px solid var(--rule); margin-top: 4mm; padding-top: 2mm; }
+.chain-ok { color: var(--green); font-weight: 700; }
+.chain-bad { color: var(--red); font-weight: 700; }
+.empty { color: var(--muted); font-style: italic; }

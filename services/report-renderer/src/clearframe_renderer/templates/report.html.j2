@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ClearFrame — E&amp;O clearance report — {{ production_summary.title }}</title>
+<style>{% include "report.css" %}</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">ClearFrame · E&amp;O clearance report</div>
+  <h1>{{ production_summary.title }}</h1>
+  <table class="meta">
+    <tr><td>Cut</td><td>{{ production_summary.cut_label }} · <code>{{ production_summary.cut_id }}</code>{% if production_summary.cut_hash %} · hash <code>{{ production_summary.cut_hash }}</code>{% endif %}</td></tr>
+    <tr><td>Generated</td><td>{{ generated }} UTC</td></tr>
+    <tr><td>Ledger integrity</td><td>
+      {% if production_summary.chain_verified %}
+        <span class="chain-ok">verified</span> — {{ production_summary.chain_events }} events, hash-chained, head <code>{{ production_summary.chain_head[:24] }}</code>
+      {% else %}
+        <span class="chain-bad">FAILED VERIFICATION</span> — this report must not be relied upon
+      {% endif %}
+    </td></tr>
+    <tr><td>Research spend</td><td>${{ '%.2f'|format(production_summary.budget_spent_usd) }} of ${{ '%.2f'|format(production_summary.budget_cap_usd) }} cap</td></tr>
+    <tr><td>Decisions signed by</td><td>{{ production_summary.signatories|join(', ') or 'none recorded' }}</td></tr>
+  </table>
+  <p class="disclaimer">{{ disclaimer }} Every factual claim below carries at least one live-web citation with a stored snapshot; see the citation appendix.</p>
+</header>
+
+<h2>1 · Production summary</h2>
+<table class="register">
+  <tr><th>Pass</th><th>Mode</th><th>Status</th><th>Items</th><th>Challenges</th><th>Started</th></tr>
+  {% for p in production_summary.passes %}
+  <tr><td><code>{{ p.pass_id[:12] }}</code></td><td>{{ p.mode }}</td><td>{{ p.status }}</td>
+      <td>{{ p.items }}</td><td>{{ p.challenges }}</td><td>{{ p.started }}</td></tr>
+  {% else %}
+  <tr><td colspan="6" class="empty">No passes recorded.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>2 · Item register</h2>
+<table class="register">
+  <tr><th>Timecode</th><th>Scene</th><th>Type</th><th>Item</th><th>Prominence</th><th>Risk</th><th>Resolution</th></tr>
+  {% for i in item_register %}
+  <tr>
+    <td>{{ i.tc_in }}</td><td>{{ i.scene }}</td><td>{{ i.type }}</td><td>{{ i.title }}</td>
+    <td>{{ i.prominence }}</td>
+    <td><span class="risk {{ i.risk_state|risk_class }}">{{ i.risk_state }}</span></td>
+    <td>{{ i.status }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">No items extracted for this cut.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>3 · Findings &amp; chain of title</h2>
+{% for entry in findings_detail %}
+<div class="item">
+  <h3>{{ entry.title }} — <span class="risk {{ entry.risk_state|risk_class }}">{{ entry.risk_state }}</span></h3>
+  <p>{{ entry.type }} · scene {{ entry.scene or '—' }} · {{ entry.tc_in }} · status {{ entry.status }}</p>
+  {% for f in entry.findings %}
+  <p><strong>{{ f.agent }}</strong> · confidence {{ f.confidence }} · tier T{{ f.tier }}
+     {% if f.prev_interaction_id %}· chained from <code>{{ f.prev_interaction_id[:18] }}</code>{% endif %}
+     {% if f.interaction_id %}· run <code>{{ f.interaction_id[:18] }}</code>{% endif %}</p>
+  <div class="claim">{{ f.claim | tojson(indent=2) }}</div>
+  {% if f.note %}<p>{{ f.note }}</p>{% endif %}
+  <ul class="cites">
+    {% for c in f.citations %}
+    <li><span class="authority">{{ c.authority }}</span>
+      <a href="{{ c.url }}">{{ c.title or c.url }}</a>
+      — fetched {{ c.fetched_ts[:10] }}{% if c.published_date %}, published {{ c.published_date }}{% endif %}
+      {% if c.snapshot_uri %}· snapshot <code>{{ c.snapshot_uri }}</code>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% for c in entry.challenges %}
+  <div class="challenge"><strong>Verifier challenge — {{ c.grounds }}</strong><br />
+    {{ c.rationale }}<br />
+    {% for u in c.citations %}<a href="{{ u }}">{{ u }}</a><br />{% endfor %}</div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">No non-green items on this cut.</p>
+{% endfor %}
+
+<h2>4 · Risk assessment &amp; mitigations</h2>
+{% for entry in risk_mitigations %}
+<div class="item">
+  <h3>{{ entry.title }} — <span class="risk {{ entry.risk_state|risk_class }}">{{ entry.risk_state }}</span></h3>
+  <p>{{ entry.rationale }}</p>
+  {% if entry.grounding_refs %}<p><em>Grounded in:</em> {{ entry.grounding_refs|join('; ') }}</p>{% endif %}
+  <table class="register">
+    <tr><th>Mitigation</th><th>Summary</th><th>Cost delta</th><th>Production impact</th></tr>
+    {% for m in entry.mitigations %}
+    <tr><td>{{ m.kind }}{% if m.recommended %} ★{% endif %}</td><td>{{ m.summary }}</td>
+        <td>${{ '%.2f'|format(m.cost_delta_usd) }}</td><td>{{ m.production_impact }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if entry.decisions %}
+  <table class="register">
+    <tr><th>Decided by</th><th>Role</th><th>Action</th><th>Rationale</th><th>When</th></tr>
+    {% for d in entry.decisions %}
+    <tr><td>{{ d.actor }}</td><td>{{ d.role }}</td><td>{{ d.action }}</td>
+        <td>{{ d.rationale }}</td><td>{{ d.ts[:19] }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="empty">Awaiting counsel decision.</p>{% endif %}
+  <p class="disclaimer">{{ entry.disclaimer }}</p>
+</div>
+{% else %}
+<p class="empty">No amber or red items on this cut.</p>
+{% endfor %}
+
+<h2>5 · Outreach log</h2>
+<table class="register">
+  <tr><th>To</th><th>Subject</th><th>Contact source</th><th>Status</th><th>Approved by</th></tr>
+  {% for o in outreach_log %}
+  <tr><td>{{ o.to }}{% if o.email %} &lt;{{ o.email }}&gt;{% endif %}</td><td>{{ o.subject }}</td>
+      <td>{% if o.contact_source %}<a href="{{ o.contact_source }}">source</a>{% else %}—{% endif %}</td>
+      <td>{{ o.status }}</td><td>{{ o.approved_by or '—' }}</td></tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">No inquiries drafted.</td></tr>
+  {% endfor %}
+</table>
+<p class="disclaimer">ClearFrame drafts and queues licence inquiries; it has no capability to send them. Every message leaves the system by a human hand.</p>
+
+<h2>6 · Watch schedule</h2>
+<table class="register">
+  <tr><th>Subject</th><th>Change classes</th><th>Frequency</th><th>Armed</th><th>Last checked</th><th>Reopens</th></tr>
+  {% for w in watch_schedule %}
+  <tr><td>{{ w.subject }}</td><td>{{ w.change_classes|join(', ') }}</td><td>{{ w.frequency }}</td>
+      <td>{{ w.armed[:10] }}</td><td>{{ w.last_checked[:19] if w.last_checked else '—' }}</td>
+      <td>{{ w.reopens }}</td></tr>
+  {% else %}
+  <tr><td colspan="6" class="empty">No watches armed yet. Watches arm when this report ships.</td></tr>
+  {% endfor %}
+</table>
+<p class="disclaimer">A cleared item is an armed monitor, not a closed row. Any watch firing reopens its items and alerts counsel; the system never re-closes an item on its own.</p>
+
+<h2>7 · Delta annex</h2>
+{% if delta_annex.has_delta %}
+  {% for d in delta_annex.deltas %}
+  <p>Against cut <code>{{ d.previous_cut_id }}</code>: {{ d.added }} added, {{ d.removed }} withdrawn,
+     {{ d.inherited }} inherited unchanged, {{ d.re_researched }} re-researched.</p>
+  {% endfor %}
+{% else %}
+<p class="empty">This is a full pass; no delta annex applies.</p>
+{% endif %}
+{% if delta_annex.reopens %}
+<h3>Items reopened after sign-off</h3>
+<table class="register">
+  <tr><th>Item</th><th>Change class</th><th>Summary</th><th>Source</th></tr>
+  {% for r in delta_annex.reopens %}
+  <tr><td><code>{{ r.item_id[:14] }}</code></td><td>{{ r.change_class }}</td><td>{{ r.summary }}</td>
+      <td>{% if r.source_url %}<a href="{{ r.source_url }}">source</a>{% else %}—{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2>A · Citation appendix</h2>
+<table class="register">
+  <tr><th>Authority</th><th>Source</th><th>Fetched</th><th>Published</th><th>Snapshot</th><th>Items</th></tr>
+  {% for c in citation_appendix %}
+  <tr><td><span class="authority">{{ c.authority }}</span></td>
+      <td><a href="{{ c.url }}">{{ c.title or c.url }}</a></td>
+      <td>{{ c.fetched_ts[:10] }}</td><td>{{ c.published_date or '—' }}</td>
+      <td>{% if c.snapshot_uri %}stored{% else %}—{% endif %}</td>
+      <td>{{ c.used_by|join('; ') }}</td></tr>
+  {% else %}
+  <tr><td colspan="6" class="empty">No citations recorded.</td></tr>
+  {% endfor %}
+</table>
+
+</body>
+</html>
