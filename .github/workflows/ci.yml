@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python — lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync workspace
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Tests
+        run: uv run pytest -q
+
+      # The hash chain is the audit story; a broken chain must fail the build,
+      # not be discovered in front of an underwriter.
+      - name: Ledger chain integrity
+        run: |
+          uv run python - <<'PY'
+          import asyncio, sys
+          from clearframe_contracts import Project
+          from clearframe_ledger.chain import append, verify_chain
+
+          async def main() -> int:
+              from clearframe_runtime import get_store
+              await get_store().create_project(Project(project_id="ci", title="CI"))
+              await asyncio.gather(*[
+                  append("ci", "ci", {"type": "finding.added", "n": i}) for i in range(50)
+              ])
+              result = verify_chain("ci")
+              print(result)
+              return 0 if result["valid"] and result["events"] == 50 else 1
+
+          sys.exit(asyncio.run(main()))
+          PY
+        env:
+          CLEARFRAME_BACKEND: local
+          CLEARFRAME_LOCAL_ROOT: .ci-state
+
+      - name: Playbooks resolve against the toolbelt
+        run: |
+          uv run python - <<'PY'
+          from clearframe_orch.playbooks import all_playbooks
+          from clearframe_orch.toolbelt import declarations_for
+          for playbook in all_playbooks():
+              declarations_for(playbook.tools)
+              assert playbook.goal and playbook.guardrails, playbook.name
+          print(f"{len(all_playbooks())} playbooks valid")
+          PY
+
+      - name: Generated artefacts are current
+        run: |
+          uv run python scripts/export_agent_tools.py
+          uv run python scripts/export_ts_contracts.py
+          git diff --exit-code -- agents/tools packages/contracts/ts/src \
+            || (echo "::error::Generated files are stale. Run 'make tools' and commit." && exit 1)
+
+  web:
+    name: Web — lint, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm typecheck
+        working-directory: web
+      - run: pnpm lint
+        working-directory: web
+      - run: pnpm build
+        working-directory: web
+
+  secrets:
+    name: No secret has entered the repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

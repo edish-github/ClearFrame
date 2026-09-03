@@ -1,0 +1,108 @@
+rules_version = '2';
+
+// ClearFrame live state.
+//
+// The browser never writes here. Findings, decisions and state transitions go
+// through the ledger API and the orchestrator, which enforce the role model
+// server-side; the web app only subscribes. These rules make that architectural
+// promise unforgeable rather than merely intended.
+//
+// Deploy:  gcloud firestore rules release infra/firestore.rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // A human's project access is mirrored from the ledger's role bindings.
+    function hasRole(projectId) {
+      return signedIn() && exists(
+        /databases/$(database)/documents/role_bindings/$(projectId + ':' + request.auth.token.email)
+      );
+    }
+
+    function roleOn(projectId) {
+      return get(
+        /databases/$(database)/documents/role_bindings/$(projectId + ':' + request.auth.token.email)
+      ).data.role;
+    }
+
+    // ---------------------------------------------------------------- reads
+
+    match /projects/{projectId} {
+      allow read: if hasRole(projectId);
+      allow write: if false;                 // service accounts bypass rules
+    }
+
+    match /cuts/{cutId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /items/{itemId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /passes/{passId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /findings/{findingId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /assessments/{assessmentId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /watches/{watchId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id);
+      allow write: if false;
+    }
+
+    match /rights_holders/{holderId} {
+      allow read: if signedIn();             // the graph is cross-production
+      allow write: if false;
+    }
+
+    // Outreach drafts name real people at real companies. Counsel and the
+    // coordinator who wrote them; nobody else.
+    match /outreach/{outreachId} {
+      allow read: if signedIn() && hasRole(resource.data.project_id)
+                  && roleOn(resource.data.project_id) in ['counsel', 'coordinator'];
+      allow write: if false;
+    }
+
+    // The crew feed carries item-scoped detail; same access as the pass.
+    match /feed/{entryId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------ never read
+
+    match /role_bindings/{binding} {
+      allow read: if false;                  // used by rules only, via get()
+      allow write: if false;
+    }
+
+    match /ledger_counters/{projectId} {
+      allow read, write: if false;           // the hash chain's sequence allocator
+    }
+
+    // Anything not named above is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
