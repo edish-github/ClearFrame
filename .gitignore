@@ -31,4 +31,4 @@ reports/*.pdf
 
 # Internal assets and concept documents
 docs%asset/
-research/
+research/*.tsbuildinfo
