@@ -1,0 +1,17 @@
+{
+  "description": "Parallel's managed MCP server, registered directly as an Agent Builder tool. Search and Extract reach the crews through this path; Task, Deep Research, FindAll and Monitor go through the Cloud Run adapter, which holds the API key.",
+  "type": "mcp",
+  "server": {
+    "url": "https://mcp.parallel.ai/v1beta/search_mcp",
+    "transport": "streamable_http",
+    "auth": {
+      "type": "api_key_header",
+      "header": "x-api-key",
+      "secret_ref": "projects/clearframe-local/secrets/parallel-api-key/versions/latest"
+    }
+  },
+  "tools": [
+    "web_search_preview",
+    "extract"
+  ]
+}

@@ -1,0 +1,468 @@
+{
+  "description": "Function declarations for the ClearFrame crew playbooks. Import these into Agent Builder; each playbook's `tools:` list names the subset it may call.",
+  "generated_from": "orchestrator/src/clearframe_orch/toolbelt.py",
+  "function_declarations": [
+    {
+      "name": "parallel_search",
+      "description": "T0 recon. Run keyword web searches and get back cited excerpts. Cheap and wide \u2014 use it first, and use it to check someone else's answer independently.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "What you are trying to establish, in one sentence"
+          },
+          "search_queries": {
+            "type": "array",
+            "description": "3-6 word keyword queries, up to 8",
+            "items": {
+              "type": "string"
+            }
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Default 8"
+          }
+        },
+        "required": [
+          "objective",
+          "search_queries"
+        ]
+      }
+    },
+    {
+      "name": "parallel_extract",
+      "description": "Fetch the full text of specific pages you have already found, as clean markdown. Use it on the two most authoritative results, not on everything.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "description": "Up to 20 URLs",
+            "items": {
+              "type": "string"
+            }
+          },
+          "objective": {
+            "type": "string",
+            "description": "What you are looking for in these pages"
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      }
+    },
+    {
+      "name": "parallel_task",
+      "description": "Run one structured research task against your specialist's output schema. This is where facts come from: the result is schema-shaped, citation-backed, and is the only thing that can become a finding. Name the entity and the specific fact sought in the objective \u2014 a vague objective returns uncited prose.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "The research task. Name the work, the entities found in recon, and the exact question \u2014 e.g. 'Establish the current controller of the composition and the owner of the master for X as used in Y'"
+          },
+          "schema_name": {
+            "type": "string",
+            "description": "music_rights | trademark | likeness | footage"
+          }
+        },
+        "required": [
+          "objective",
+          "schema_name"
+        ]
+      }
+    },
+    {
+      "name": "submit_finding",
+      "description": "Commit a draft produced by parallel_task to the ledger. A draft with no citations cannot be committed. Say in `note` what the draft establishes and what it does not.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "draft_finding_id": {
+            "type": "string",
+            "description": "The id returned by parallel_task"
+          },
+          "note": {
+            "type": "string",
+            "description": "What this finding establishes, and what remains open"
+          }
+        },
+        "required": [
+          "draft_finding_id"
+        ]
+      }
+    },
+    {
+      "name": "get_item_context",
+      "description": "Read the item under investigation and everything already established about it, including prior findings and any challenges filed against them.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "Defaults to the item you were dispatched to"
+          }
+        }
+      }
+    },
+    {
+      "name": "verify_pass",
+      "description": "Pass a finding through to risk scoring. Use it when the claim is supported by current, authoritative, internally consistent sources.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "description": "The finding you examined"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why it survives: which source carries the claim"
+          }
+        },
+        "required": [
+          "finding_id",
+          "rationale"
+        ]
+      }
+    },
+    {
+      "name": "file_challenge",
+      "description": "Reject a finding and send it back for re-research. A challenge must cite the ground: a source that is stale, weaker than the claim needs, or contradicts it. You may not reject on suspicion alone \u2014 if you cannot cite the doubt, pass it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "description": "The finding you are challenging"
+          },
+          "grounds": {
+            "type": "string",
+            "enum": [
+              "stale",
+              "authority",
+              "independence",
+              "inconsistent",
+              "conflict_unresolved"
+            ],
+            "description": "Which test the finding failed"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "The specific defect, naming the offending source"
+          },
+          "citation_urls": {
+            "type": "array",
+            "description": "URLs that evidence the ground; at least one",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "finding_id",
+          "grounds",
+          "rationale",
+          "citation_urls"
+        ]
+      }
+    },
+    {
+      "name": "search_clearance_guidance",
+      "description": "Retrieve passages from the grounding corpora \u2014 E&O underwriting guidance and network clearance handbooks. Every risk judgement must rest on a retrieved passage, quoted by its reference.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What guidance you need, e.g. 'background artwork de minimis'"
+          },
+          "corpus": {
+            "type": "string",
+            "description": "eo-underwriting | clearance-handbooks | all"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "submit_assessment",
+      "description": "Record the risk state for the item, with mitigations. GREEN needs no mitigation; AMBER and RED need two or three, each with a cost delta and a production impact. Every output is research and drafting for a human, never a legal conclusion.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "risk_state": {
+            "type": "string",
+            "enum": [
+              "green",
+              "amber",
+              "red"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why this state, referencing the findings and the guidance"
+          },
+          "grounding_refs": {
+            "type": "array",
+            "description": "References to the handbook passages you relied on",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mitigations": {
+            "type": "array",
+            "description": "2-3 for amber and red",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "license",
+                    "replace",
+                    "alter",
+                    "remove",
+                    "fair_use_memo",
+                    "no_action"
+                  ]
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "cost_delta_usd": {
+                  "type": "number"
+                },
+                "production_impact": {
+                  "type": "string"
+                },
+                "recommended": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "summary"
+              ]
+            }
+          }
+        },
+        "required": [
+          "risk_state",
+          "rationale"
+        ]
+      }
+    },
+    {
+      "name": "findall_rights_holders",
+      "description": "Discover the entities that actually control a catalog or collection and how their licensing desk is reached. Give explicit match conditions \u2014 vague objectives return plausible companies rather than the right ones.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "e.g. 'Find licensing entities controlling the X catalog'"
+          },
+          "match_conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ]
+            }
+          },
+          "match_limit": {
+            "type": "integer",
+            "description": "5-25 is sensible"
+          }
+        },
+        "required": [
+          "objective",
+          "match_conditions"
+        ]
+      }
+    },
+    {
+      "name": "draft_outreach",
+      "description": "Draft a licence inquiry for counsel to approve. Drafting is all you can do: there is no send capability in this system, only a queue behind the counsel gate.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "holder_name": {
+            "type": "string",
+            "description": "Rights holder the inquiry is addressed to"
+          },
+          "to_name": {
+            "type": "string",
+            "description": "Named contact, if one was discovered"
+          },
+          "to_email": {
+            "type": "string",
+            "description": "Contact email, only if it came from a cited source"
+          },
+          "contact_source_url": {
+            "type": "string",
+            "description": "Where the contact detail was found"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Subject line"
+          },
+          "body": {
+            "type": "string",
+            "description": "The inquiry: what is used, where, for how long, and the ask"
+          }
+        },
+        "required": [
+          "holder_name",
+          "subject",
+          "body"
+        ]
+      }
+    },
+    {
+      "name": "record_items",
+      "description": "Emit the clearable elements you extracted. Extraction only \u2014 no rights conclusions, no ownership guesses, no risk language.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "music_cue",
+                    "lyric_quote",
+                    "brand",
+                    "artwork",
+                    "likeness",
+                    "footage",
+                    "location",
+                    "font"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "scene": {
+                  "type": "string"
+                },
+                "page": {
+                  "type": "integer"
+                },
+                "frame_in": {
+                  "type": "integer"
+                },
+                "frame_out": {
+                  "type": "integer"
+                },
+                "prominence": {
+                  "type": "string",
+                  "enum": [
+                    "background",
+                    "featured",
+                    "hero"
+                  ]
+                },
+                "attrs": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "type",
+                "title",
+                "description",
+                "prominence"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    }
+  ],
+  "playbook_toolbelts": {
+    "breakdown": [
+      "record_items"
+    ],
+    "dispatcher": [
+      "get_item_context"
+    ],
+    "music-rights": [
+      "get_item_context",
+      "parallel_search",
+      "parallel_extract",
+      "parallel_task",
+      "submit_finding"
+    ],
+    "marks-brands": [
+      "get_item_context",
+      "parallel_search",
+      "parallel_extract",
+      "parallel_task",
+      "submit_finding"
+    ],
+    "likeness": [
+      "get_item_context",
+      "parallel_search",
+      "parallel_extract",
+      "parallel_task",
+      "submit_finding"
+    ],
+    "footage-artwork": [
+      "get_item_context",
+      "parallel_search",
+      "parallel_extract",
+      "parallel_task",
+      "submit_finding"
+    ],
+    "verifier": [
+      "get_item_context",
+      "parallel_search",
+      "parallel_extract",
+      "verify_pass",
+      "file_challenge"
+    ],
+    "risk-counsel": [
+      "get_item_context",
+      "search_clearance_guidance",
+      "submit_assessment"
+    ],
+    "outreach": [
+      "get_item_context",
+      "findall_rights_holders",
+      "draft_outreach"
+    ],
+    "ledger": [
+      "get_item_context"
+    ],
+    "sentinel": [
+      "get_item_context"
+    ]
+  }
+}
