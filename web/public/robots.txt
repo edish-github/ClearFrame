@@ -1,3 +1,0 @@
-# The war room holds pre-release material. Nothing here should be indexed.
-User-agent: *
-Disallow: /
