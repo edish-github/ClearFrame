@@ -1,3 +1,6 @@
+labs/research/
+research/
+
 # Python
 __pycache__/
 *.py[oc]
@@ -14,7 +17,7 @@ node_modules/
 .next/
 dist/
 
-# Local secrets & state — never commit
+# Local secrets & state
 .env
 .env.local
 *.key
@@ -23,12 +26,3 @@ service-account*.json
 
 # OS
 .DS_Store
-
-# Generated artefacts
-demo/film/**/*.mp4
-reports/*.pdf
-
-
-# Internal assets and concept documents
-docs%asset/
-research/
