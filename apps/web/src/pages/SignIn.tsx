@@ -74,7 +74,13 @@ export function SignIn() {
           </p>
         </div>
       </form>
-      <div className="signin__art" aria-hidden />
+      <div className="signin__art" aria-hidden>
+        <img
+          src="/clearframe-hero.png"
+          alt="ClearFrame — See What Matters"
+          className="signin__art-img"
+        />
+      </div>
     </div>
   );
 }
