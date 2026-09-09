@@ -1,0 +1,49 @@
+---
+title: ClearFrame — a finding's life
+---
+stateDiagram-v2
+    direction LR
+    [*] --> queued : breakdown extracts it
+
+    queued --> researching : worker claims the job
+    queued --> held : budget cap reached before dispatch
+
+    researching --> verifying : evidence recorded
+    verifying --> researching : challenged, and budget remains
+    verifying --> tracing : evidence accepted or exhausted
+    tracing --> assessing : chains traced
+
+    assessing --> review : HIGH risk, or any chain unresolved
+    assessing --> cleared : LOW risk and every chain clear
+
+    review --> approved : counsel · clear for use
+    review --> licensed : counsel · pursue licence
+    review --> replaced : counsel · replace element
+    review --> rejected : counsel · remove from cut
+
+    cleared --> monitored : watch armed
+    approved --> monitored : watch armed
+    licensed --> monitored : watch armed
+    replaced --> monitored : watch armed
+    rejected --> monitored : watch armed
+
+    monitored --> review : a new source conflicts with the record
+    monitored --> monitored : no material change
+
+    queued --> withdrawn : absent from a later cut
+    withdrawn --> queued : it came back
+
+    held --> researching : POST /resume after the cap is raised
+    researching --> failed : three attempts exhausted
+    failed --> researching : POST /resume
+
+    note right of monitored
+        nothing in the monitoring path
+        can close a finding.
+        only a person can.
+    end note
+
+    note right of review
+        the AI cannot mark anything approved.
+        requireRole("counsel") is server side.
+    end note

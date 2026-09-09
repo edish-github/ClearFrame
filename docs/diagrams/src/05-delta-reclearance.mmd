@@ -1,0 +1,36 @@
+---
+title: ClearFrame — what a new cut costs
+---
+flowchart TD
+    UP["Producer uploads cut n"] --> HASH{"sha256 identical<br/>to an earlier cut?"}
+    HASH -->|yes| REFUSE["409 · nothing would change"]
+    HASH -->|no| BD["Gemini re-reads the screenplay"]
+
+    BD --> KEY["for each item:<br/><b>item_key</b> = CATEGORY|normalised(item)<br/><b>content_hash</b> = scene + page + context"]
+
+    KEY --> MATCH{"item_key seen<br/>in this production?"}
+
+    MATCH -->|no| NEW["<b>added</b><br/>INSERT finding · queued"]
+    MATCH -->|yes| CH{"content_hash<br/>changed?"}
+
+    CH -->|yes| CHANGED["<b>changed</b><br/>status → queued<br/>stages_done → {}<br/>research_sources → null"]
+    CH -->|no| CARRY["<b>carried</b><br/>evidence, risk, chains and the<br/>counsel decision all stay put"]
+
+    KEY --> GONE{"a prior item_key<br/>absent from cut n?"}
+    GONE -->|yes| WD["<b>withdrawn</b><br/>never deleted. the research stays<br/>on record in case it returns"]
+
+    NEW --> Q["fan out finding.investigate"]
+    CHANGED --> Q
+    CARRY --> SKIP["no job. no provider call. no spend."]
+    WD --> SKIP
+
+    Q --> LED["ledger ← delta_pass<br/>{added, changed, withdrawn, carried}"]
+    SKIP --> LED
+    LED --> ANNEX["report gains a delta annex"]
+
+    classDef work fill:#EDEDFB,stroke:#2A2BD8,color:#15171B
+    classDef free fill:#E6F1EC,stroke:#1E6B4C,color:#15171B
+    classDef stop fill:#F7E7E4,stroke:#AE2A1C,color:#15171B
+    class NEW,CHANGED,Q work
+    class CARRY,SKIP free
+    class REFUSE,WD stop

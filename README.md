@@ -9,7 +9,7 @@ each one against the live web, challenges its own findings, traces ownership, sc
 exposure, routes what it cannot settle to human counsel, and renders an auditable
 clearance report where every claim links to a source that was actually retrieved.
 
-[Architecture](docs/architecture.md) · [API](docs/api.md) · [Data model](docs/data-model.md) · [Running it](docs/operations.md) · [Submission notes](docs/judging.md)
+[Architecture](docs/architecture.md) · [Data Model](docs/data-model.md) · [API Reference](docs/api.md) · [Operations](docs/operations.md) · [Security & Ledger](docs/security-ledger.md) · [Agent Playbooks](docs/agent-playbooks.md) · [Documentation Index](docs/README.md)
 
 [![CI](https://github.com/OWNER/clearframe/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/clearframe/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-informational)](LICENSE)
@@ -103,7 +103,7 @@ clearframe/
 │       └── scripts           migrate · selftest · smoketest
 │
 ├── packages/shared           vocabulary both sides speak
-└── docs                      architecture · api · data model · operations · judging
+└── docs                      architecture · data-model · api · operations · security · playbooks · diagrams
 ```
 
 Providers never reason. The pipeline never opens a socket. Routes never call a model.

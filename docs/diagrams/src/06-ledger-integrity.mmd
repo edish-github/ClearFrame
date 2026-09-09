@@ -1,0 +1,34 @@
+---
+title: ClearFrame — why the history cannot be edited
+---
+flowchart LR
+    subgraph chain["THE CHAIN — one row per state change"]
+        direction LR
+        E1["<b>seq 1</b> · Producer<br/>pass_opened<br/><br/>prev = 000…000<br/>hash = <b>a3f1…</b>"]
+        E2["<b>seq 2</b> · Script supervisor<br/>breakdown · 14 items<br/><br/>prev = a3f1…<br/>hash = <b>7c02…</b>"]
+        E3["<b>seq 3</b> · Continuity<br/>challenge filed<br/><br/>prev = 7c02…<br/>hash = <b>e918…</b>"]
+        E4["<b>seq 4</b> · Counsel<br/>decision · pursue licence<br/><br/>prev = e918…<br/>hash = <b>2b44…</b>"]
+        E1 --> E2 --> E3 --> E4
+    end
+
+    CANON["<b>canonicalJson()</b><br/>recursively sorted keys<br/><br/>postgres jsonb does not preserve key order.<br/>hash the naive JSON.stringify and every chain<br/>fails the moment it is read back from disk.<br/>this failure is silent."]
+    CANON -.-> E2
+
+    TRIG["<b>database trigger</b><br/>UPDATE → always refused<br/>DELETE → refused unless<br/>clearframe.allow_purge is set<br/>for the transaction"]
+    TRIG -.-> chain
+
+    TAMPER["someone with direct DB access<br/>disables the trigger and edits seq 2"]
+    TAMPER --> BREAK["<b>verifyChain()</b> recomputes from stored rows<br/>→ { ok: false, brokenAt: 2 }<br/><br/>tampering is not merely discouraged.<br/>it is locatable to the exact entry."]
+
+    E4 --> SIGN{"POST /reports/:id/sign"}
+    SIGN -->|chain intact| OK["signed · head pinned<br/>at the moment of signature"]
+    SIGN -->|chain broken| NO["409 · the ledger for this production<br/>is broken at entry N. it cannot be signed."]
+
+    classDef entry fill:#FFF,stroke:#5C6068,color:#15171B
+    classDef note fill:#FEF9E7,stroke:#96650F,color:#15171B
+    classDef bad fill:#F7E7E4,stroke:#AE2A1C,color:#15171B
+    classDef good fill:#E6F1EC,stroke:#1E6B4C,color:#15171B
+    class E1,E2,E3,E4 entry
+    class CANON,TRIG note
+    class TAMPER,BREAK,NO bad
+    class OK good

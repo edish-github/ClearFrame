@@ -1,0 +1,51 @@
+---
+title: ClearFrame — the four planes
+---
+flowchart TB
+    subgraph experience["EXPERIENCE"]
+        direction LR
+        WEB["Clearance workspace<br/><i>React · Vite · SSE</i>"]
+        ROLES["Producer · Coordinator<br/>Counsel · Reviewer"]
+    end
+
+    subgraph control["CONTROL — writes jobs, never calls a model"]
+        direction LR
+        API["API<br/><i>Fastify · Zod · JWT</i>"]
+        SSE["LISTEN/NOTIFY → SSE<br/><i>works across instances</i>"]
+    end
+
+    subgraph execution["EXECUTION — owns every external call"]
+        direction LR
+        WORKER["Worker<br/><i>FOR UPDATE SKIP LOCKED</i>"]
+        STAGES["recon · synthesise · verify<br/>escalate · trace · assess"]
+    end
+
+    subgraph outside["THE OUTSIDE WORLD"]
+        direction LR
+        GEM["Gemini on Vertex AI<br/><i>reasons. never retrieves.</i>"]
+        PAR["Parallel<br/><i>retrieves. never reasons.</i>"]
+    end
+
+    subgraph memory["MEMORY"]
+        direction LR
+        PG[("Postgres<br/><i>14 tables · money in micros</i>")]
+        GCS[("Object store<br/><i>scripts · snapshots · PDFs</i>")]
+    end
+
+    WEB -->|REST| API
+    SSE -.->|"events are notifications,<br/>not state"| WEB
+    API -->|"INSERT INTO jobs"| PG
+    WORKER -->|"claim"| PG
+    WORKER --> STAGES
+    STAGES --> GEM
+    STAGES --> PAR
+    STAGES --> PG
+    STAGES --> GCS
+    PG -->|pg_notify| SSE
+    API --> PG
+    ROLES -.->|"authority checked<br/>server side"| API
+
+    classDef plane fill:#EDEDFB,stroke:#2A2BD8,stroke-width:1px,color:#15171B
+    classDef store fill:#FFF,stroke:#5C6068,color:#15171B
+    class WEB,API,WORKER,STAGES,SSE,GEM,PAR,ROLES plane
+    class PG,GCS store

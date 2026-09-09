@@ -1,0 +1,46 @@
+---
+title: ClearFrame — Google Cloud topology
+---
+flowchart TB
+    JUDGE(["Judge · browser"])
+
+    subgraph run["Cloud Run"]
+        direction TB
+        WEB["<b>clearframe-web</b><br/>nginx · static bundle<br/>219 KB / 69 KB gzipped"]
+        API["<b>clearframe-api</b><br/>node dist/server.js<br/>stateless, scale to zero"]
+        WK["<b>clearframe-worker</b><br/>node dist/jobs/worker.js<br/>min-instances 1"]
+    end
+
+    SCHED["Cloud Scheduler<br/><i>hourly</i>"]
+    SQL[("Cloud SQL · Postgres 16")]
+    GCS[("Cloud Storage<br/>scripts · snapshots · reports")]
+    SM["Secret Manager<br/><i>agents call tools.<br/>tools hold secrets.</i>"]
+    LOG["Cloud Logging"]
+
+    VERTEX["Vertex AI<br/>gemini-2.5-pro · gemini-2.5-flash"]
+    PARALLEL["Parallel<br/>Search · Task · Monitor"]
+
+    JUDGE --> WEB
+    WEB -->|"/api/*"| API
+    API --> SQL
+    API --> GCS
+    WK --> SQL
+    WK --> GCS
+    WK --> VERTEX
+    WK --> PARALLEL
+    SCHED -->|"POST /api/internal/sweep<br/>shared secret, timing-safe"| API
+    PARALLEL -.->|"monitor webhook<br/>HMAC verified"| API
+    SM -.-> API
+    SM -.-> WK
+    API --> LOG
+    WK --> LOG
+
+    NOTE["<b>one image, two entrypoints.</b><br/>the worker is the same container as the API<br/>with a different command, so they cannot<br/>drift apart between deploys.<br/><br/>docker compose up --scale worker=3 works<br/>with no configuration: workers coordinate<br/>through the jobs table, not through each other."]
+    NOTE -.- run
+
+    classDef svc fill:#EDEDFB,stroke:#2A2BD8,color:#15171B
+    classDef store fill:#FFF,stroke:#5C6068,color:#15171B
+    classDef ext fill:#FEF9E7,stroke:#96650F,color:#15171B
+    class WEB,API,WK,SCHED svc
+    class SQL,GCS,SM,LOG store
+    class VERTEX,PARALLEL ext

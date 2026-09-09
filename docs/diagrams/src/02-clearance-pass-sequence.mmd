@@ -1,0 +1,70 @@
+---
+title: ClearFrame — one finding, upload to armed watch
+---
+sequenceDiagram
+    autonumber
+    participant U as Producer
+    participant API as API
+    participant DB as Postgres
+    participant W as Worker
+    participant PS as Parallel · Search
+    participant G as Gemini · Vertex
+    participant PT as Parallel · Task
+    participant C as Counsel
+
+    U->>API: POST /productions (multipart, screenplay)
+    API->>DB: INSERT production, cut, storage_key
+    Note over API,DB: the API never calls a model.<br/>it validates, writes a job, and returns.<br/>that is why a pass survives a closed laptop
+    API->>DB: ledger ← pass_opened {cut, sha256(file)}
+    API->>DB: INSERT job pass.breakdown
+    API-->>U: 201 · milliseconds, not minutes
+
+    W->>DB: claim (FOR UPDATE SKIP LOCKED)
+    W->>G: breakdown · Pro · responseSchema
+    G-->>W: up to 24 items {item, category, scene, page, context}
+    Note over W,DB: item_key = CATEGORY|normalised(item).<br/>unique per production. this key is what makes<br/>delta re-clearance possible three cuts from now
+    W->>DB: INSERT findings, fan out finding.investigate
+
+    rect rgb(247, 247, 252)
+    Note over W,PT: TIER 0/1 — recon on every item
+    W->>PS: search(objective, queries) · advanced
+    PS-->>W: 8 sources with excerpts
+    W->>G: synthesise(item, sources) · Flash
+    G-->>W: {summary, evidence[{url, stance, note}]}
+    Note over W,G: every url is checked against the retrieved pool.<br/>anything not in it is dropped before INSERT and the<br/>rejected count is written to the activity feed.<br/>a fabricated citation is structurally impossible
+    W->>DB: INSERT evidence (ON CONFLICT DO NOTHING) + snapshot
+    end
+
+    W->>G: verify(summary, evidence) · Pro
+    G-->>W: {sufficient, reason, followUpObjective}
+
+    alt evidence challenged, and budget remains
+        Note over W,PT: TIER 2/3 — escalation fires only on a cited<br/>objection. this is what keeps the expensive<br/>processor off the boring 90% of the register
+        W->>DB: ledger ← challenge {finding, reason}
+        W->>PT: task.create(objective, previous_interaction_id)
+        PT-->>W: dossier + citations
+        W->>G: re-synthesise with the objection attached
+        W->>G: verify again
+    else evidence accepted
+        Note over W,G: no escalation. the pass spends pennies here
+    end
+
+    W->>G: trace chains · Pro
+    G-->>W: MUSIC → 2 chains (composition, master)
+    Note over W,G: licensing one clears nothing.<br/>an unresolved or contested chain forces human<br/>review regardless of how confident assess reads
+    W->>G: assess(summary, evidence, chains, verification)
+    G-->>W: {risk, confidence, recommendation, requiresReview}
+    W->>DB: ledger ← assessment {risk, confidence}
+
+    alt requiresReview
+        W->>DB: status = review
+        C->>API: POST /findings/:id/decision
+        Note over API,C: requireRole("counsel"). a producer gets 403<br/>regardless of what the client sends
+        API->>DB: ledger ← decision {action, rationale, actor}
+        API->>DB: INSERT job outreach.draft (if licensed)
+    else cleared without review
+        W->>DB: status = cleared
+    end
+
+    W->>DB: INSERT watch · next_check_at = now() + 24h
+    Note over W,DB: a resolved finding is an armed watch,<br/>not a closed row. nothing in the monitoring<br/>path can close a finding. only a person can

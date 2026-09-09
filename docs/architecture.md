@@ -1,111 +1,254 @@
-# Architecture
+# ClearFrame Architecture
 
-## The shape of it
+This document details the architectural design, component boundaries, execution flow, and core engineering principles of ClearFrame.
 
-```
-                         browser
-                            │  REST + Server-Sent Events
-                            ▼
-              ┌──────────────────────────┐
-              │      API (Fastify)       │  auth · uploads · reads · human gates
-              └────────────┬─────────────┘
-                           │ jobs table
-                           ▼
-              ┌──────────────────────────┐
-              │          Worker          │  breakdown · investigate · recheck
-              └───┬──────────────────┬───┘  outreach · report render
-                  │                  │
-           Gemini │                  │ Parallel
-        (reasoning)                  (retrieval)
-                  │                  │
-                  ▼                  ▼
-              ┌──────────────────────────┐
-              │  Postgres + object store │  findings · evidence · ledger · PDFs
-              └──────────────────────────┘
-```
+---
 
-**The API never calls a model.** It validates, writes a job, and returns. Every
-external call belongs to the worker. That single decision is why a pass survives
-a closed laptop, a redeploy, a rate limit or a worker crash — and why the upload
-endpoint answers in milliseconds instead of minutes.
+## 1. System Context & The Four Planes
 
-Live updates travel back the other way through Postgres `LISTEN`/`NOTIFY` into
-SSE, so the stream keeps working with several API instances behind a load
-balancer and with workers on entirely separate machines.
+ClearFrame is architected across four distinct planes to ensure fault tolerance, strict auditability, and clear separation of concerns.
 
-## Layers
+![System Context](diagrams/png/01-system-context.png)
 
-| Layer | Location | Responsibility |
-|---|---|---|
-| `core` | `services/api/src/core` | Config, database, auth, storage, ledger, event bus, error shapes |
-| `providers` | `services/api/src/providers` | Every outbound call to Gemini and Parallel, and the schemas that constrain them |
-| `pipeline` | `services/api/src/pipeline` | Stages, and the orchestrator that sequences them under a budget |
-| `jobs` | `services/api/src/jobs` | Durable queue and the worker process |
-| `routes` | `services/api/src/routes` | HTTP surface, one file per concern |
-| `report` | `services/api/src/report` | PDF rendered from persisted rows |
-| `shared` | `packages/shared` | Vocabulary both sides speak: statuses, categories, labels, DTOs |
-| `web` | `apps/web` | The workspace |
+```mermaid
+flowchart TB
+    subgraph EXPERIENCE["EXPERIENCE PLANE"]
+        UI["React 18 Single-Page App<br/>(Vite · Vanilla CSS)"]
+        SSE_CLIENT["SSE Stream Receiver<br/>(EventSource)"]
+    end
 
-Providers never reason. The pipeline never opens a socket. Routes never call a
-model. Keeping those boundaries is what makes the system testable without keys.
+    subgraph CONTROL["CONTROL PLANE"]
+        API["Fastify API Server<br/>(Node.js 22 LTS)"]
+        AUTH["JWT & RBAC Gate<br/>(Producer · Coordinator · Counsel)"]
+        VALIDATOR["Schema Validator<br/>(Zod / Fastify)"]
+    end
 
-## The pipeline, per finding
+    subgraph EXECUTION["EXECUTION PLANE"]
+        WORKER["Background Pipeline Worker<br/>(Multi-Lane Concurrency)"]
+        ORCH["Pipeline Orchestrator<br/>(Multi-Stage Controller)"]
+        
+        subgraph PROVIDERS["AI & Retrieval Providers"]
+            GEMINI["Google Vertex AI<br/>(Gemini 2.5 Pro & Flash)"]
+            PARALLEL["Parallel Web API<br/>(Search & TaskRun)"]
+        end
+    end
 
-```
-recon ──► synthesise ──► verify ──┬── sufficient ─────────────────► trace ──► assess
-(Parallel  (Gemini,      (Gemini) │                                (Gemini)  (Gemini)
- Search)  pool-locked)            └── challenged ──► escalate ──► re-synthesise ──► re-verify
-                                                  (Parallel Task,
-                                                   core or pro)
+    subgraph MEMORY["MEMORY PLANE"]
+        PG[("Cloud SQL PostgreSQL 16<br/>(14 Tables · Append-Only Ledger)")]
+        GCS["Google Cloud Storage<br/>(Screenplays · Snapshots · Signed PDFs)"]
+    end
+
+    UI -->|"REST API"| API
+    SSE_CLIENT <---| "Server-Sent Events" | API
+    API --> AUTH --> VALIDATOR
+    VALIDATOR -->|"Enqueue Job"| PG
+    
+    WORKER -->|"Claim Job (SKIP LOCKED)"| PG
+    WORKER --> ORCH
+    ORCH -->|"Reasoning & Synthesis"| GEMINI
+    ORCH -->|"Live Web Retrieval"| PARALLEL
+    ORCH -->|"Append Evidence & Ledger"| PG
+    ORCH -->|"Store Artifacts"| GCS
+
+    PG -.->|"LISTEN / NOTIFY"| API
 ```
 
-Escalation to the expensive processor fires only on a **cited objection** from
-the verifier. That is what keeps deep research away from the boring ninety
-percent of a register while still spending real money where exposure justifies
-it. The budget is checked before dispatch and again before escalation; at the
-cap, remaining items are marked `held` rather than guessed, and `POST /resume`
-picks them up after the cap is raised.
+| Plane | Components | Guiding Architectural Invariant |
+| :--- | :--- | :--- |
+| **Experience Plane** | React 18 SPA, Vite, Vanilla CSS design system | Renders committed state from persisted rows. Never invents data. |
+| **Control Plane** | Fastify REST API, JWT Auth, Role-Based Access Control | **Never calls an AI model directly.** Validates, enqueues work, and returns in milliseconds. |
+| **Execution Plane** | Queue Workers, Pipeline Orchestrator, Gemini & Parallel adapters | Executes multi-stage reasoning and web retrieval. Owns all outbound provider spend. |
+| **Memory Plane** | PostgreSQL 16 (Cloud SQL), Cloud Storage (GCS) | Immutable append-only audit trail. Micro-dollar integer accounting. |
 
-Music always resolves two chains — composition and master — because licensing
-one clears nothing. An unresolved or contested chain forces human review no
-matter how confident the assessment reads. That floor lives in code
-(`stages.ts`, `assess`), not in a prompt.
+---
 
-## Three guarantees, and where they are enforced
+### Why the API Never Calls a Model
 
-**A citation cannot be fabricated.** Parallel returns the source pool; Gemini
-synthesises against it; any URL the model emits that is not in the pool is
-dropped before insert, and the count of rejected citations is written to the
-activity feed. `services/api/src/pipeline/stages.ts`, `synthesise`.
+A clearance pass on a full-length screenplay initiates dozens of multi-hop web searches, extraction calls, and LLM reasoning steps that take several minutes.
 
-**History cannot be edited.** Every state change appends to a hash-chained
-ledger. `UPDATE` is refused by a database trigger; `DELETE` needs an explicit
-session flag. `verifyChain` recomputes the whole chain on demand and reports the
-exact entry where it breaks. `services/api/src/core/ledger.ts`.
+If an HTTP request held that connection open:
+1. **Connection Failures**: Client timeouts, load balancer disconnects, or laptop closures kill the process mid-pass.
+2. **Partial State Loss**: Crashes leave the database in an inconsistent state with no recovery mechanism.
+3. **Unbounded Latency**: HTTP endpoints would block for minutes rather than milliseconds.
 
-**Authority is server side.** Only counsel resolves a finding, releases an
-inquiry, or signs a report. The client cannot grant itself a role; the UI only
-decides what to grey out. `services/api/src/core/auth.ts`, `requireRole`.
+**The Solution:**
+- `POST /api/productions` validates inputs, writes the script to GCS, inserts a `jobs` row, and returns `201 Created` immediately.
+- Distributed background workers drain the `jobs` queue using PostgreSQL `FOR UPDATE SKIP LOCKED`.
+- If a worker terminates, its lock expires, and the reaper releases the job for immediate resumption without re-running completed stages.
 
-## Things that will bite you
+---
 
-**`jsonb` does not preserve key order.** Ledger hashing therefore runs through a
-recursive key-sorting canonicaliser. Hash the naive `JSON.stringify` and every
-chain fails verification the moment it is read back from disk. This failure is
-silent and this paragraph is the only warning.
+## 2. The Clearance Pipeline
 
-**Money is integer micro-dollars.** Every provider call writes a `cost_events`
-row with real token counts and increments the production total in the same
-statement. The budget meter is measured, not modelled. Never introduce a float.
+Each element extracted from a screenplay passes through an autonomous, multi-stage reasoning pipeline:
 
-**Findings are keyed on category plus a normalised item name.** That key is what
-makes delta re-clearance work: a moved item is re-researched, an untouched one
-keeps its evidence and its decision, and one that has left the cut becomes
-`withdrawn` rather than being deleted.
+![Clearance Pass Sequence](diagrams/png/02-clearance-pass-sequence.png)
 
-**Signatures belong to a report, not to a production.** Generating a new report
-after signing an older one leaves the old signature intact.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Producer
+    participant API as Fastify API
+    participant DB as PostgreSQL 16
+    participant Worker as Background Worker
+    participant Gemini as Gemini 2.5 (Vertex AI)
+    participant Parallel as Parallel API
+    actor Counsel
 
-**Deep research is an escalation, not a dependency.** If the Task API is down
-the pipeline falls back to a targeted second search and records that it did,
-rather than abandoning the finding.
+    Producer->>API: Upload Screenplay (PDF / Text)
+    API->>DB: Insert Production, Cut & 'pass.breakdown' Job
+    API-->>Producer: 201 Created (ID returned immediately)
+
+    Worker->>DB: Claim Job (FOR UPDATE SKIP LOCKED)
+    Worker->>Gemini: Run Breakdown (Full Screenplay Context)
+    Gemini-->>Worker: Extracted Items (Category, Scene, Page, Context)
+    Worker->>DB: Persist Findings & Enqueue 'finding.investigate' Jobs
+
+    loop For each Finding in parallel
+        Worker->>Parallel: Recon Search (Parallel.search)
+        Parallel-->>Worker: 8 Candidate Web Sources with Excerpts
+        
+        Worker->>Gemini: Synthesize Rights Position (Flash, Pool-Locked)
+        Gemini-->>Worker: Candidate Summary & Evidence Citations
+        Worker->>DB: Filter Non-Pool URLs & Save Evidence Rows
+        
+        Worker->>Gemini: Verify Evidence Sufficiency (Pro Tier)
+        alt Verifier Objects (Insufficient / Stale / Conflicting)
+            Gemini-->>Worker: Challenge Filed with Objective
+            Worker->>Parallel: Escalate Deep Research (Parallel.taskRun)
+            Parallel-->>Worker: Structured Dossier & Additional Sources
+            Worker->>Gemini: Re-synthesize & Re-verify
+        else Evidence Accepted
+            Gemini-->>Worker: Verified
+        end
+
+        Worker->>Gemini: Trace Chains of Title (Pro Tier)
+        Gemini-->>Worker: Chain Rows (Right, Holder, Status)
+        
+        Worker->>Gemini: Assess Legal Risk & Exposure (Pro Tier)
+        Gemini-->>Worker: Risk (LOW/MED/HIGH), Confidence (0-1.0), Recommendation
+        Worker->>DB: Set Finding Status (review / cleared) & Append Ledger
+    end
+
+    Counsel->>API: Record Decision / Sign Clearance Report
+    API->>DB: Record Legal Decision & Append Ledger
+    API->>DB: Render & Digitally Sign Report (Cryptographic Seal)
+```
+
+### The Six Pipeline Stages
+
+1. **Breakdown (`pass.breakdown`)**:
+   - Analyzes screenplay structure, dialogue, action sluglines, and scene descriptions.
+   - Extracts third-party elements into standard legal clearance categories: `MUSIC`, `BRAND`, `LIKENESS`, `ARTWORK`, `FOOTAGE`, `OTHER`.
+2. **Reconnaissance (`recon`)**:
+   - Executes broad, multi-query searches via `parallel.search` (`advanced` mode).
+   - Builds an authoritative candidate pool of real web sources with extracted text snippets.
+3. **Synthesis (`synthesise`)**:
+   - Formulates the current legal rights position using **only** sources present in the retrieved pool.
+   - Enforces the **Citation Allowlist**: any citation not matching a retrieved URL is discarded before database insertion.
+4. **Verification & Challenge (`verify`)**:
+   - Evaluates whether recorded evidence legally and factually supports the asserted claim.
+   - If insufficient or outdated, files a structured legal objection with follow-up search objectives.
+5. **Chain of Title Tracing (`traceChains`)**:
+   - Traces property rights from original creation through assignments, corporate acquisitions, estate transfers, and current administration.
+   - For `MUSIC`, always traces dual independent chains: **Composition** ($\copyright$) and **Master Recording** ($\text{\textcircled{P}}$).
+6. **Risk Assessment (`assess`)**:
+   - Computes legal risk (`LOW`, `MEDIUM`, `HIGH`) and statistical confidence score.
+   - Floor constraint: Any unresolved chain or high-risk finding forces `review` and requires human counsel sign-off.
+
+---
+
+## 3. Strict Anti-Hallucination & Provenance
+
+To guarantee that clearance reports withstand scrutiny by insurance underwriters and studio legal departments, ClearFrame enforces three structural integrity mechanisms:
+
+### A. The Strict Citation Allowlist
+
+```typescript
+// Enforced in services/api/src/pipeline/stages.ts
+const pool = new Map(args.sources.map((s) => [s.url, s]));
+const evidence: EvidenceRow[] = [];
+let dropped = 0;
+
+for (const e of data.evidence ?? []) {
+  const url = String(e?.url ?? "");
+  const src = pool.get(url);
+  
+  if (!src) {
+    dropped++; // Model generated a hallucinated or modified URL
+    continue;
+  }
+  
+  evidence.push({
+    url,
+    title: src.title,                // From real HTTP metadata
+    domain: domainOf(url),
+    stance: e.stance,
+    note: String(e.note ?? "").slice(0, 300),
+    publishDate: src.publishDate,    // From real HTTP metadata
+    excerpt: src.excerpts.join("\n\n"),
+  });
+}
+```
+
+### B. Dual-Chain Music Clearance
+
+```
+                             ┌───► Master Recording (℗) ───► Record Label (Indie / Major)
+"Love Will Tear Us Apart" ───┤
+                             └───► Composition (©) ────────► Publishing Administrator / Estate
+```
+
+Licensing the master recording does not grant synchronization rights for the musical composition. ClearFrame evaluates both chains separately; if either chain is unresolved, the finding cannot be cleared automatically.
+
+---
+
+## 4. Multi-Cut Delta Re-Clearance
+
+When a production uploads a revised script cut ($N+1$), ClearFrame avoids redundant research by computing element signatures:
+
+![Delta Reclearance](diagrams/png/05-delta-reclearance.png)
+
+1. **`item_key`** = `CATEGORY | normalize(item_name)` &rarr; Canonical element identity.
+2. **`content_hash`** = `normalize(scene | page | context)` &rarr; Placement signature.
+
+- **Unchanged Elements** (`same item_key, same content_hash`): Carried forward with existing research, chains, and decisions.
+- **Modified Elements** (`same item_key, different content_hash`): Re-queued for verification to assess context shift.
+- **Removed Elements** (`item_key absent from new cut`): Marked `withdrawn` in the ledger without deleting historical records.
+- **New Elements**: Dispatched for full multi-stage clearance.
+
+---
+
+## 5. Deployment Topology
+
+![Deployment Topology](diagrams/png/07-deployment.png)
+
+```
+                                  Internet
+                                     │
+                         HTTPS (Cloud Run Ingress)
+                                     ▼
+                   ┌───────────────────────────────────┐
+                   │          clearframe-web           │  (Nginx Reverse Proxy + Static SPA)
+                   └─┬───────────────────────────────┬─┘
+                     │ /api/                         │ /
+                     ▼                               ▼
+       ┌───────────────────────────┐   ┌───────────────────────────┐
+       │      clearframe-api       │   │    Static React Build     │
+       │    (Fastify Web Server)   │   └───────────────────────────┘
+       └─────────────┬─────────────┘
+                     │ Cloud SQL Connection
+                     ▼
+       ┌───────────────────────────┐   ┌───────────────────────────┐
+       │   Cloud SQL Postgres 16   │◄──┤     clearframe-worker     │  (Queue Processor)
+       │    (clearframe database)  │   │   (min-instances: 1)      │
+       └───────────────────────────┘   └─────────────┬─────────────┘
+                     ▲                               │ Outbound API
+                     │                               ▼
+       ┌─────────────┴─────────────┐   ┌───────────────────────────┐
+       │     clearframe-sweep      │   │   Vertex AI & Parallel    │
+       │  (Cloud Scheduler Hourly) │   │     (Reasoning & Web)     │
+       └───────────────────────────┘   └───────────────────────────┘
+```
+
+ClearFrame packages both the API server and the background queue worker into a single, multi-entrypoint container image deployed across Google Cloud Run services.

@@ -1,0 +1,79 @@
+---
+title: ClearFrame — the clearance ledger
+---
+erDiagram
+    ORGS ||--o{ USERS : "four roles, one authority model"
+    ORGS ||--o{ PRODUCTIONS : owns
+    PRODUCTIONS ||--o{ CUTS : "one row per uploaded screenplay"
+    PRODUCTIONS ||--o{ FINDINGS : "the register"
+    PRODUCTIONS ||--o{ LEDGER : "append only, hash chained"
+    PRODUCTIONS ||--o{ COST_EVENTS : "every provider call, in micros"
+    PRODUCTIONS ||--o{ JOBS : "durable queue"
+    PRODUCTIONS ||--o{ REPORTS : "snapshots, signatures, PDFs"
+    FINDINGS ||--o{ EVIDENCE : "only what a search returned"
+    FINDINGS ||--o{ DECISIONS : "who resolved it, why, when"
+    FINDINGS ||--o| OUTREACH : "drafted, counsel gated, never sent"
+    FINDINGS ||--o| WATCHES : "resolved is not closed"
+
+    PRODUCTIONS {
+        uuid id PK
+        text status "breakdown|running|review|complete|failed"
+        bigint budget_cap_micros "integer micro-dollars. never a float"
+        bigint spent_micros "incremented in the same statement as the cost row"
+    }
+
+    CUTS {
+        int n "pass number. n=1 is the first pass, n>1 is a delta"
+        text content_hash "sha256 of the file. a byte-identical re-upload is refused"
+        jsonb stats "added / changed / withdrawn / carried"
+    }
+
+    FINDINGS {
+        uuid id PK
+        text item_key "CATEGORY|normalised(item) — identity across cuts"
+        text content_hash "scene + page + context — changes when the element moves"
+        text status "queued→researching→verifying→tracing→assessing→review|cleared"
+        risk_level risk "LOW | MEDIUM | HIGH"
+        jsonb chains "music always returns two. licensing one clears nothing"
+        jsonb verification "sufficient, reason, escalated, priorReason"
+        text_array stages_done "retry checkpoint. a dead job resumes, it does not re-buy"
+        jsonb research_sources "the retrieved pool, so a resumed job can synthesise again"
+        text parallel_run_id "interaction id, so a challenge inherits its own history"
+    }
+
+    EVIDENCE {
+        text url "must have come back from Parallel in this pass"
+        text stance "supports | conflicts | context"
+        text snapshot_key "excerpt captured at retrieval. survives link rot"
+        int round "1 = recon, 2 = after a challenge, 9 = monitoring"
+    }
+
+    LEDGER {
+        int seq "allocated under an advisory lock. the chain cannot fork"
+        text actor "a crew credit or a person's name"
+        jsonb event "canonicalised with sorted keys before hashing"
+        text prev_hash "editing entry n breaks every hash from n onward"
+        text hash "sha256. UPDATE is refused by a trigger"
+    }
+
+    COST_EVENTS {
+        text stage "machine-facing. crew names live in activity, not here"
+        int input_tokens "read from usageMetadata, not estimated"
+        bigint cost_micros "the budget meter is measured"
+    }
+
+    JOBS {
+        text state "ready|running|done|failed"
+        int attempts "backoff 30s, 2m, 8m, then park"
+        timestamptz locked_at "a reaper releases anything a dead worker held"
+    }
+
+    OUTREACH {
+        text state "drafting|draft|approved|failed"
+        text approved_name "there is no send capability in the codebase"
+    }
+
+    REPORTS {
+        text ledger_head "pinned at generation, re-pinned at signature"
+        timestamptz signed_at "signing refuses on a broken chain"
+    }
