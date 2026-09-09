@@ -1,0 +1,45 @@
+{
+  "name": "@clearframe/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ClearFrame API and pipeline worker.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "start:worker": "node dist/jobs/worker.js",
+    "dev": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/jobs/worker.ts",
+    "migrate": "tsx src/scripts/migrate.ts",
+    "test": "tsx src/scripts/selftest.ts",
+    "smoke": "tsx src/scripts/smoketest.ts"
+  },
+  "dependencies": {
+    "@clearframe/shared": "*",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/multipart": "^9.0.1",
+    "@google-cloud/storage": "^7.14.0",
+    "@google/genai": "^2.21.0",
+    "bcryptjs": "^2.4.3",
+    "fastify": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "parallel-web": "^1.3.3",
+    "pdfkit": "^0.15.1",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.9.0",
+    "@types/pdfkit": "^0.13.9",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
