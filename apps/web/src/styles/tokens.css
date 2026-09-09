@@ -1,0 +1,50 @@
+/**
+ * Design tokens.
+ *
+ * A clearance workspace is read for hours by people who are looking for a
+ * problem. The surface stays quiet so the risk colours mean something when they
+ * appear, and monospace is reserved for data you compare across rows.
+ */
+:root {
+  /* surface */
+  --paper: #e7e8e4;
+  --card: #ffffff;
+  --line: #d6d8d2;
+  --line-soft: #eaebe7;
+  --hover: #fafaf8;
+
+  /* ink */
+  --ink: #15171b;
+  --ink-2: #5c6068;
+  --ink-3: #8c9098;
+
+  /* one signal colour, spent on live system state only */
+  --signal: #2a2bd8;
+  --signal-soft: #ededfb;
+
+  /* risk, in editorial tones rather than traffic-light primaries */
+  --risk-high: #ae2a1c;
+  --risk-medium: #96650f;
+  --risk-low: #1e6b4c;
+  --risk-high-soft: #f7e7e4;
+  --risk-low-soft: #e6f1ec;
+
+  /* type */
+  --font-ui: "Inter Tight", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* scale */
+  --step-0: 14px;
+  --step-1: 15px;
+  --step-2: 19px;
+  --step-3: 30px;
+  --micro: 12px;
+  --nano: 11.5px;
+
+  /* geometry */
+  --radius: 12px;
+  --radius-sm: 9px;
+  --radius-pill: 999px;
+  --rail: 248px;
+  --measure: 68ch;
+}
