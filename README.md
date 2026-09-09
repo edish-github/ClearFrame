@@ -30,7 +30,7 @@
 | Service | Endpoint / Access |
 |---|---|
 | **Web Workspace** | [https://clearframe-web-690834564732.us-central1.run.app](https://clearframe-web-690834564732.us-central1.run.app) |
-| **Demo Account** | `judge@clearframe.test` · Password: `ClearFrame2026!` *(Role: Studio Legal Counsel)* |
+| **Demo Access** | Register a workspace at [`/register`](https://clearframe-web-690834564732.us-central1.run.app/register) (or see private hackathon testing instructions) |
 | **API Base URL** | `https://clearframe-api-690834564732.us-central1.run.app` |
 | **Infrastructure** | Serverless Google Cloud Run (`us-central1`) + Google Cloud SQL + Cloud Storage (GCS) |
 
