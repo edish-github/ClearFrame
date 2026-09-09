@@ -1,0 +1,18 @@
+{
+  "name": "clearframe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Autonomous rights clearance and chain-of-title investigation for film and television.",
+  "license": "Apache-2.0",
+  "workspaces": ["packages/*", "services/*", "apps/*"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "npm run build -w @clearframe/shared && npm run build -w @clearframe/api && npm run build -w @clearframe/web",
+    "dev": "npm run dev -w @clearframe/api & npm run dev:worker -w @clearframe/api & npm run dev -w @clearframe/web",
+    "migrate": "npm run migrate -w @clearframe/api",
+    "test": "npm run test -w @clearframe/api",
+    "smoke": "npm run smoke -w @clearframe/api",
+    "typecheck": "npm run typecheck -w @clearframe/shared && npm run typecheck -w @clearframe/api && npm run typecheck -w @clearframe/web"
+  },
+  "devDependencies": { "typescript": "^5.6.3" }
+}

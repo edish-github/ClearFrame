@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: clearframe
+      POSTGRES_PASSWORD: clearframe
+      POSTGRES_DB: clearframe
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clearframe"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    command: ["node", "dist/server.js"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://clearframe:clearframe@db:5432/clearframe
+      STORAGE_LOCAL_DIR: /repo/.data
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: ["appdata:/repo/.data"]
+
+  # Same image, different entrypoint. Scale it with `docker compose up -d --scale worker=3`.
+  worker:
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    command: ["node", "dist/jobs/worker.js"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://clearframe:clearframe@db:5432/clearframe
+      STORAGE_LOCAL_DIR: /repo/.data
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: ["appdata:/repo/.data"]
+
+volumes:
+  pgdata:
+  appdata:
