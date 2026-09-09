@@ -4,172 +4,294 @@
 
 **Autonomous rights clearance and chain-of-title investigation for film and television.**
 
-A producer uploads a screenplay. A pipeline breaks it into clearable elements, researches
-each one against the live web, challenges its own findings, traces ownership, scores
-exposure, routes what it cannot settle to human counsel, and renders an auditable
-clearance report where every claim links to a source that was actually retrieved.
+[![Google Cloud](https://img.shields.io/badge/Google_Cloud-Vertex_AI-4285F4?style=flat&logo=googlecloud&logoColor=white)](https://cloud.google.com/vertex-ai)
+[![Parallel AI](https://img.shields.io/badge/Parallel_AI-Search_%26_Task-6366F1?style=flat)](https://parallel.ai)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16_Cloud_SQL-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Cloud Run](https://img.shields.io/badge/Google_Cloud-Cloud_Run-4285F4?style=flat&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8_Strict-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-[Architecture](docs/architecture.md) · [Data Model](docs/data-model.md) · [API Reference](docs/api.md) · [Operations](docs/operations.md) · [Security & Ledger](docs/security-ledger.md) · [Agent Playbooks](docs/agent-playbooks.md) · [Documentation Index](docs/README.md)
-
-[![CI](https://github.com/OWNER/clearframe/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/clearframe/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-informational)](LICENSE)
+<p align="center">
+  <a href="#live-deployment">Live Demo</a> •
+  <a href="#the-problem">The Problem</a> •
+  <a href="#system-architecture">Architecture</a> •
+  <a href="#the-dual-chain-music-breakthrough">Dual-Chain Rights</a> •
+  <a href="#core-guarantees--invariants">Guarantees</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#documentation-suite">Documentation</a>
+</p>
 
 </div>
 
 ---
 
-## The problem
+### Live Deployment
 
-No film reaches an audience without clearance. Every song, visible brand, artwork,
-depicted person and second of archival footage has to be traced to whoever controls it
-today, and a distributor will not accept delivery without errors-and-omissions insurance,
-which underwriters will not issue without a credible clearance report. A 110-page feature
-routinely yields two to four hundred clearable items.
+| Service | Endpoint / Access |
+|---|---|
+| **Web Workspace** | [https://clearframe-web-690834564732.us-central1.run.app](https://clearframe-web-690834564732.us-central1.run.app) |
+| **Demo Account** | `judge@clearframe.test` · Password: `ClearFrame2026!` *(Role: Studio Legal Counsel)* |
+| **API Base URL** | `https://clearframe-api-690834564732.us-central1.run.app` |
+| **Infrastructure** | Serverless Google Cloud Run (`us-central1`) + Google Cloud SQL + Cloud Storage (GCS) |
 
-Today that work is a spreadsheet, a clearance coordinator and two to eight weeks of
-paralegal hours. The output is stale the moment the picture is re-cut, and blind the
-moment the world changes — a catalogue acquisition or a lawsuit filed after sign-off is
-invisible until it becomes a claim.
+---
 
-Music is the trap that makes this investigation rather than lookup. One song is two
-properties with separate chains of title: the master recording and the underlying
-composition. Licensing one clears nothing. A lookup finds the label. Only an
-investigation finds the estate dispute sitting on the composition.
+## The Problem
 
-## What this does
+No film or television production reaches an audience without clearance. Every song, visible brand, artwork, depicted real person, and archival clip must be traced to whoever controls the rights **today**. A distributor will not accept delivery without Errors & Omissions (E&O) insurance, and underwriters will not issue a policy without an exhaustive, auditable clearance report.
+
+A standard 110-page feature screenplay routinely yields **200 to 400 distinct clearable items**.
+
+Today, this process is broken:
+* **The Manual Grind**: Handled via spreadsheets, clearance coordinators, and weeks of paralegal hours.
+* **Instant Obsolescence**: The moment the director issues a revision (e.g. from shooting draft to blue revision), the clearance spreadsheet is immediately out of date.
+* **Post-Signoff Blindness**: If a music catalog is acquired or an estate lawsuit is filed after sign-off, the production remains blind until hit with a cease-and-desist.
+
+### The Dual-Chain Music Trap
+A single song represents two separate legal properties with independent chains of title:
+1. **The Master Recording** (controlled by a record label).
+2. **The Underlying Composition** (controlled by publishers, songwriters, or fractured estates).
+
+Licensing one clears nothing. A standard database lookup finds the label. Only a live investigation uncovers the probate dispute or unadministered catalog split sitting on the composition.
+
+---
+
+## System Architecture
+
+ClearFrame is built around four decoupled planes. The API never invokes an LLM directly; instead, it writes a job to a durable PostgreSQL queue (`FOR UPDATE SKIP LOCKED`) and returns in milliseconds. Background workers execute the multi-stage research pipeline, and live updates travel back through PostgreSQL `LISTEN`/`NOTIFY` into Server-Sent Events (SSE).
+
+![ClearFrame System Context](docs/diagrams/png/01-system-context.png)
 
 ```
-upload → break down → research → verify → trace → assess → decide → report → monitor
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │  EXPERIENCE PLANE           React 19 · Vite · Server-Sent Events (SSE) │
+   │  Producer │ Coordinator │ Legal Counsel │ Underwriting Reviewer        │
+   └────────────────────────────────┬───────────────────────────────────────┘
+                                    │  REST + JWT
+                                    ▼
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │  CONTROL PLANE              Fastify API · Zod Validation · RBAC Gates  │
+   │                                                                        │
+   │      ★ THE API NEVER CALLS A MODEL DIRECTLY ★                          │
+   │      Validates input → INSERTS job to queue → Returns in milliseconds  │
+   └────────────────────────────────┬───────────────────────────────────────┘
+                                    │  PostgreSQL Job Queue (SKIP LOCKED)
+                                    ▼
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │  EXECUTION PLANE            Worker Daemon · Resumable Step Pipeline    │
+   │                                                                        │
+   │   Breakdown ──► Recon ──► Synthesis ──► Verify ──► Trace ──► Assess    │
+   └────────┬───────────────────────────────────────────────────┬───────────┘
+            │                                                   │
+            ▼                                                   ▼
+   ┌────────────────────┐                          ┌────────────────────────┐
+   │  GEMINI (Vertex)   │                          │  PARALLEL AI           │
+   │  Reasons & Judges. │                          │  Retrieves & Scrapes.  │
+   │  Never retrieves.  │                          │  Never reasons.        │
+   └────────┬───────────┘                          └────────────┬───────────┘
+            │                                                   │
+            └───────────────────────┬───────────────────────────┘
+                                    ▼
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │  MEMORY PLANE      PostgreSQL 16 (14 Tables) · Cloud Storage (GCS)     │
+   │  Findings · Evidence Citations · SHA-256 Ledger · Cost Events · Audits │
+   └────────────────────────────────┬───────────────────────────────────────┘
+                                    │  PostgreSQL LISTEN / NOTIFY
+                                    └──────────► SSE Stream ──► Back to UI
 ```
 
-Every arrow is real. Gemini reasons; Parallel retrieves; Postgres remembers. When a new
-cut arrives, only what changed is re-cleared. When a cleared item's rights position moves
-later, the finding reopens itself.
+---
 
-## The one rule
+## End-to-End Clearance Pass Sequence
 
-> Every production, finding, status, evidence source, timestamp, confidence score, risk
-> assessment, activity event, decision and report in this system originates from a real
-> user action or a real backend pipeline execution. Where data does not exist, the
-> interface shows an empty or pending state rather than inventing placeholder content.
+When a screenplay PDF is uploaded, ClearFrame executes an orchestrated sequence across specialized autonomous agents:
 
-There is no fixture data in this repository. Three mechanisms keep that enforceable
-rather than aspirational:
+![ClearFrame Clearance Pass Sequence](docs/diagrams/png/02-clearance-pass-sequence.png)
 
-| Guarantee | How it is enforced | Where |
+1. **Breakdown Agent** (`gemini-2.5-pro`): Extracts all clearable cues anchored to scene slugline, page number, context, and prominence (`hero`, `featured`, `background`).
+2. **Recon & Retrieval** (`parallel-web`): Queries live-web registries and archives, capturing HTML crawl snapshots.
+3. **Continuity Verifier Agent** (`gemini-2.5-pro`): Adversarially red-teams findings—challenging stale sources (>24 months) and conflicting registry claims before risk scoring.
+4. **Studio Risk Counsel Agent** (`gemini-2.5-pro`): Maps findings to E&O underwriting standards (`GREEN`, `AMBER`, `RED`) with costed mitigations.
+5. **Outreach Drafting Agent** (`gemini-2.5-flash`): Auto-drafts sync license inquiries held strictly behind human legal counsel authorization.
+
+---
+
+## The Dual-Chain Music Breakthrough
+
+```
+                    ┌──────────────────────────────────────────────┐
+                    │  Scene 42 — "Midnight City" (Cover Version)  │
+                    └──────────────────────┬───────────────────────┘
+                                           │
+                    ┌──────────────────────┴───────────────────────┐
+                    ▼                                              ▼
+          ╔═════════════════════╗                        ╔═════════════════════╗
+          ║   MASTER CHAIN  ℗   ║                        ║ COMPOSITION CHAIN © ║
+          ║  (This Performance) ║                        ║ (The Written Work)  ║
+          ╚═════════╤═══════════╝                        ╚═════════╤═══════════╝
+                    │                                              │
+                    ▼                                              ▼
+          ┌─────────────────────┐                        ┌─────────────────────┐
+          │ Indie Label Roster  │                        │ Original Publisher  │
+          └─────────┬───────────┘                        └─────────┬───────────┘
+                    │                                              │
+                    │                                              ▼
+                    │                                    ┌─────────────────────┐
+                    │                                    │ Catalog Acquisition │
+                    │                                    │ (2023 Transfer)     │
+                    │                                    └─────────┬───────────┘
+                    │                                              │
+                    │                                              ▼
+                    │                                    ┌─────────────────────┐
+                    │                                    │ ESTATE LITIGATION   │
+                    │                                    │ (Disputed Split)    │
+                    │                                    └─────────┬───────────┘
+                    ▼                                              ▼
+          ┌─────────────────────┐                        ┌─────────────────────┐
+          │   Status: CLEAR     │                        │  Status: CONTESTED  │
+          └─────────┬───────────┘                        └─────────┬───────────┘
+                    │                                              │
+                    └──────────────────────┬───────────────────────┘
+                                           ▼
+                             ┌───────────────────────────┐
+                             │  Clearable ⟺ ALL Chains   │
+                             │  Resolve Clear.           │
+                             │                           │
+                             │  → FLAGGED FOR COUNSEL    │
+                             └───────────────────────────┘
+```
+
+ClearFrame enforces a mathematical rule: **clearance is a conjunction, not an average**. If the master is 100% clear but the composition is disputed, the item is strictly flagged for human counsel resolution.
+
+---
+
+## Delta Re-Clearance Engine
+
+When a director submits a revised screenplay cut (Pass $N+1$), ClearFrame hashes scene content:
+$$\text{ContentHash} = \text{SHA256}(\text{scene} \,\|\, \text{page} \,\|\, \text{context})$$
+
+![ClearFrame Delta Re-Clearance](docs/diagrams/png/05-delta-reclearance.png)
+
+* **Unchanged Items**: Carried forward with full evidence and counsel decisions intact (**$0.00 compute spend**).
+* **Modified Items**: Re-queued and re-investigated in context.
+* **Deleted Items**: Marked `withdrawn`—never deleted from the audit ledger.
+
+---
+
+## Core Guarantees & Invariants
+
+> **The One Rule**: Every finding, source URL, spend penny, risk score, and report originates from a real user action or live pipeline execution. Where data does not exist, the UI renders an empty state rather than inventing placeholder content.
+
+| Guarantee | Enforcement Mechanism | Code Location |
 |---|---|---|
-| A citation cannot be fabricated | URLs the model emits that are not in the retrieved source pool are dropped before insert, and the rejected count is written to the activity feed | [`pipeline/stages.ts`](services/api/src/pipeline/stages.ts) |
-| History cannot be edited | Hash-chained append-only ledger; `UPDATE` refused by a database trigger; signing refuses on a broken chain | [`core/ledger.ts`](services/api/src/core/ledger.ts) |
-| Authority is not client-side | Only counsel resolves findings, releases outreach or signs reports; the UI only decides what to grey out | [`core/auth.ts`](services/api/src/core/auth.ts) |
+| **Zero Hallucinated Citations** | Model-emitted URLs not present in the live Parallel retrieval pool are dropped at the gateway | [`services/api/src/pipeline/stages.ts`](services/api/src/pipeline/stages.ts) |
+| **Tamper-Proof Audit History** | SHA-256 hash-chained ledger; PostgreSQL trigger unconditionally rejects `UPDATE` and untagged `DELETE` | [`services/api/src/core/ledger.ts`](services/api/src/core/ledger.ts) |
+| **No Floating Point Money** | 64-bit integer micro-dollars (`bigint`); token counts and retrieval units deduct atomically in the same statement | [`services/api/src/core/db.ts`](services/api/src/core/db.ts) |
+| **Authority is Server-Side** | Only authenticated legal counsel can resolve findings, release outreach, or sign reports | [`services/api/src/core/auth.ts`](services/api/src/core/auth.ts) |
+| **No Rogue Outbound Messages** | System contains zero email-sending mechanisms; licensing inquiries are draft-only | [`services/api/src/pipeline/stages.ts`](services/api/src/pipeline/stages.ts) |
 
-## Quick start
+---
 
-```bash
-cp .env.example .env      # set GEMINI_API_KEY and PARALLEL_API_KEY
-make up                   # Postgres, API and worker, schema applied
-make smoke                # one real call to each provider
-```
+## Cryptographic Ledger Integrity
 
-Then in a second terminal:
+Every finding lifecycle event, adversarial challenge, counsel decision, and spend record appends to an immutable SHA-256 hash chain:
 
-```bash
-npm run dev -w @clearframe/web    # http://localhost:3000
-```
+$$\text{Hash}_n = \text{SHA256}\big(\,\mathcal{C}(\text{production\_id},\ \text{seq}_n,\ ts_n,\ \text{actor}_n,\ \text{event}_n,\ \text{Hash}_{n-1})\,\big)$$
 
-The API refuses to boot without both provider keys. There is deliberately no offline
-fallback, because a fallback that invented rights data would be worse than an outage.
+![ClearFrame Ledger Integrity](docs/diagrams/png/06-ledger-integrity.png)
 
-## Repository
+Underwriters can verify mathematical chain integrity at any time via `GET /api/productions/:id/integrity` or by clicking **"Verify Chain"** in the workspace.
 
-```
-clearframe/
-├── apps/web                  the clearance workspace (React, Vite)
-│   └── src
-│       ├── api               typed transport, one file
-│       ├── components        ui · findings · production · shell
-│       ├── hooks             auth, async loading, live stream
-│       ├── pages             one per route
-│       └── styles            tokens · base · layout · components
-│
-├── services/api              API and pipeline worker (Fastify, Postgres)
-│   ├── db/schema.sql         14 tables; money in integer micro-dollars
-│   └── src
-│       ├── core              config · db · auth · storage · ledger · events
-│       ├── providers         Gemini and Parallel adapters, and their schemas
-│       ├── pipeline          six stages, and the orchestrator that sequences them
-│       ├── jobs              durable queue and the worker process
-│       ├── routes            one file per concern
-│       ├── report            PDF rendered from persisted rows
-│       └── scripts           migrate · selftest · smoketest
-│
-├── packages/shared           vocabulary both sides speak
-└── docs                      architecture · data-model · api · operations · security · playbooks · diagrams
-```
+---
 
-Providers never reason. The pipeline never opens a socket. Routes never call a model.
+## Quick Start
 
-## Architecture in one picture
-
-```
-   browser ──REST + SSE──►  API  ──jobs table──►  Worker  ──►  Gemini   (reasoning)
-                             │                       │      ──►  Parallel (retrieval)
-                             └──────► Postgres ◄─────┘
-                                   findings · evidence · ledger
-```
-
-The API never calls a model. It validates, writes a job and returns. Every external call
-belongs to the worker, which is why a pass survives a closed laptop, a redeploy or a rate
-limit, and why the upload endpoint answers in milliseconds instead of minutes. Live
-updates travel back through Postgres `LISTEN`/`NOTIFY` into Server-Sent Events, so the
-stream works with several API instances and workers on separate machines.
-
-Full detail in [docs/architecture.md](docs/architecture.md).
-
-## Verifying it
+### Option A: Docker Compose (Recommended)
 
 ```bash
-make typecheck   # every workspace, strict, noUncheckedIndexedAccess
-make test        # 22 integration checks against a real Postgres
-make smoke       # one live call to each provider
+# 1. Clone and configure environment
+cp .env.example .env
+
+# Configure your keys in .env:
+# - GOOGLE_CLOUD_PROJECT
+# - PARALLEL_API_KEY
+# - DATABASE_URL=postgres://clearframe:clearframe@localhost:5433/clearframe
+
+# 2. Boot PostgreSQL, API, Worker, and Web
+make up
+
+# 3. Verify provider connectivity
+make smoke
 ```
 
-`make test` covers hash chaining and tamper detection, append-only enforcement,
-concurrent appends under contention, queue claim safety with ten simultaneous workers,
-the stall reaper, integer money accounting, delta item identity and evidence constraints.
+### Option B: Bare-Metal Development
 
-It proves tamper detection the hard way: it disables the trigger, edits an entry as an
-attacker with direct database access would, and asserts the chain breaks at exactly that
-sequence number.
+```bash
+# Install all workspace dependencies
+make install
 
-## Roles
+# Initialize database
+createdb clearframe
+make migrate
 
-| Role | Can | Cannot |
+# Start API, Worker, and React Web concurrently
+make dev
+```
+- Web Workspace: `http://localhost:3000`
+- API Server: `http://localhost:8080`
+
+---
+
+## Testing & Verification Suite
+
+```bash
+make typecheck   # Strict TypeScript across all workspaces (noUncheckedIndexedAccess)
+make test        # 22 integration tests against a live PostgreSQL instance
+make smoke       # Live round-trip connectivity test to Vertex AI & Parallel AI
+```
+
+`make test` covers SHA-256 hash chaining, adversarial tamper detection, PostgreSQL trigger immutability, concurrent advisory locking under 10 parallel workers, queue stall reaping, integer money attribution, and citation pool containment.
+
+---
+
+## Role-Based Access Control (RBAC)
+
+| Role | Permissions | Restricted Actions |
 |---|---|---|
-| Producer | Upload cuts, start passes, raise budgets, read everything | Resolve findings, release outreach, sign reports |
-| Coordinator | Correct item metadata, prioritise, read everything | Resolve findings, release outreach, sign reports |
-| Counsel | Everything above, plus decisions, outreach approval and sign-off | Delete ledger history — nobody can |
-| Reviewer | Read the register, the evidence and the report | Everything else |
+| **Producer** | Upload cuts, start passes, raise budgets, read all findings | Cannot resolve findings, release outreach, or sign reports |
+| **Coordinator** | Correct item metadata, prioritize items, view all findings | Cannot resolve findings, release outreach, or sign reports |
+| **Counsel** | Full access + approve/license findings, authorize outreach, sign E&O reports | Cannot delete ledger history (nobody can) |
+| **Reviewer** | Read-only access to register, evidence snapshots, and reports | Cannot modify any production state |
 
-Autonomy is spent on investigation. It is never spent on legal judgement or on
-contacting a rights holder.
+---
 
-## What ClearFrame does not do
+## Production Deployment Topology
 
-It does not send email. Licence inquiries are drafted and held behind counsel approval;
-there is no send capability in the codebase to misfire.
+ClearFrame runs serverlessly on **Google Cloud Platform** in `us-central1`:
 
-It does not certify clearance. The report is research and a record of decisions, and says
-so on its last page. The signature block belongs to a person.
+![ClearFrame Deployment Topology](docs/diagrams/png/07-deployment.png)
 
-It does not resolve conflicting sources silently. Where evidence disagrees, the
-disagreement is recorded, the chain is marked contested, and a human decides.
+* **Google Cloud Run**: `clearframe-web` (SPA), `clearframe-api` (Fastify REST/SSE), and `clearframe-worker` (Background Daemon).
+* **Google Cloud SQL**: Managed PostgreSQL 16 database with advisory locks and row-level security triggers.
+* **Google Cloud Storage (GCS)**: Secure bucket storage for screenplay PDFs, signed PDF reports, and immutable HTML crawl snapshots.
+* **Google Cloud Scheduler**: Automated cron triggering periodic job sweeps and Sentinel watch schedules.
 
-## Built with
+---
 
-Gemini on Google Cloud for reasoning · [Parallel](https://parallel.ai) for live web
-research · Postgres · Fastify · React
+## Documentation Suite
+
+Comprehensive technical guides and specifications are available in the [`docs/`](docs/) directory:
+
+* 📘 **[System Architecture](docs/architecture.md)** — The Four Planes, multi-stage pipelines, SSE streaming, and GCP topology.
+* 🗄️ **[Data Model & Schema](docs/data-model.md)** — Complete 14-table PostgreSQL schema, integer micro-dollars, and state machines.
+* 🔌 **[REST API & SSE Reference](docs/api.md)** — Endpoints, request/response schemas, error codes, and HMAC webhooks.
+* 🛠️ **[Operations & Deployment](docs/operations.md)** — Cloud Run deployment guide, environment variables, and runbooks.
+* 🔒 **[Security & Cryptographic Ledger](docs/security-ledger.md)** — SHA-256 chaining, PostgreSQL triggers, and anti-tamper proofs.
+* 🤖 **[Autonomous Agent Playbooks](docs/agent-playbooks.md)** — Playbooks, prompts, tools, and guardrails for all 11 autonomous agents.
+* 📊 **[Architecture Diagrams](docs/diagrams/README.md)** — High-resolution rendered PNGs and Mermaid source files.
+
+---
 
 ## Licence
 
-[Apache-2.0](LICENSE). See [NOTICE](NOTICE), [SECURITY.md](SECURITY.md) and
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Licensed under the [Apache-2.0](LICENSE) License. See [NOTICE](NOTICE), [SECURITY.md](SECURITY.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
