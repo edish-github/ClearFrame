@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { assertProvidersConfigured, env } from "../core/env.js";
 import { pool } from "../core/db.js";
 import {
@@ -11,6 +12,14 @@ assertProvidersConfigured();
 const workerId = newWorkerId();
 let shuttingDown = false;
 let inFlight = 0;
+
+// Health check listener for Cloud Run container lifecycle.
+const healthServer = createServer((_req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ ok: true, workerId, inFlight }));
+});
+const port = Number(process.env.PORT || 8080);
+healthServer.listen(port, "0.0.0.0");
 
 async function handle(job: Job): Promise<void> {
   switch (job.kind) {
@@ -91,6 +100,7 @@ async function housekeeping(): Promise<void> {
 async function shutdown(signal: string): Promise<void> {
   console.log(`[worker] ${signal} received, draining`);
   shuttingDown = true;
+  healthServer.close();
   const deadline = Date.now() + 30_000;
   while (inFlight > 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
   await pool.end().catch(() => {});

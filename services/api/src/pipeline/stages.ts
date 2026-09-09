@@ -152,7 +152,7 @@ export async function synthesise(args: {
     system: SYNTHESIS_SYSTEM,
     prompt,
     schema: synthesisSchema as unknown as Record<string, unknown>,
-    maxOutputTokens: 2048,
+    maxOutputTokens: 8192,
   });
 
   let dropped = 0;
@@ -209,7 +209,7 @@ export async function verify(args: {
     system: VERIFY_SYSTEM,
     prompt,
     schema: verifySchema as unknown as Record<string, unknown>,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096,
   });
 
   return {
@@ -286,7 +286,7 @@ export async function traceChains(args: {
     system: CHAIN_SYSTEM,
     prompt,
     schema: chainSchema as unknown as Record<string, unknown>,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096,
   });
 
   const chains: ChainRow[] = (data.chains ?? []).slice(0, 4).map((c) => ({
@@ -336,7 +336,7 @@ export async function assess(args: {
     system: ASSESS_SYSTEM,
     prompt,
     schema: assessSchema as unknown as Record<string, unknown>,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096,
   });
 
   const risk = (["LOW", "MEDIUM", "HIGH"] as const).includes(data.risk) ? data.risk : "MEDIUM";
@@ -376,7 +376,7 @@ export async function draftOutreach(args: {
     system: OUTREACH_SYSTEM,
     prompt,
     schema: outreachSchema as unknown as Record<string, unknown>,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096,
   });
 
   const fallback = args.chains.find((c) => c.holder)?.holder ?? "Rights holder";

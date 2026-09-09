@@ -92,12 +92,51 @@ export async function generate<T>(opts: CallOptions): Promise<GeminiResult<T>> {
         throw new ProviderError(`Gemini stopped early: ${finish}`);
       }
 
-      const text = response.text ?? "";
+      // Sometimes text is in response.text, or within candidate parts
+      let rawText = response.text ?? "";
+      if (!rawText && candidate?.content?.parts) {
+        rawText = candidate.content.parts
+          .map((p: any) => p.text ?? "")
+          .join("");
+      }
+
       let data: T;
       try {
-        data = JSON.parse(text) as T;
-      } catch {
-        lastError = new ProviderError("Gemini returned output that was not valid JSON", undefined, true);
+        let cleanText = rawText.trim();
+        if (cleanText.startsWith("```json")) {
+          cleanText = cleanText.slice(7);
+        } else if (cleanText.startsWith("```")) {
+          cleanText = cleanText.slice(3);
+        }
+        if (cleanText.endsWith("```")) {
+          cleanText = cleanText.slice(0, -3);
+        }
+        cleanText = cleanText.trim();
+
+        const firstBrace = cleanText.indexOf("{");
+        const firstBracket = cleanText.indexOf("[");
+        let startIdx = -1;
+        if (firstBrace !== -1 && firstBracket !== -1) {
+          startIdx = Math.min(firstBrace, firstBracket);
+        } else if (firstBrace !== -1) {
+          startIdx = firstBrace;
+        } else if (firstBracket !== -1) {
+          startIdx = firstBracket;
+        }
+
+        if (startIdx !== -1) {
+          const isObject = cleanText[startIdx] === "{";
+          const endChar = isObject ? "}" : "]";
+          const lastIdx = cleanText.lastIndexOf(endChar);
+          if (lastIdx > startIdx) {
+            cleanText = cleanText.substring(startIdx, lastIdx + 1);
+          }
+        }
+
+        data = JSON.parse(cleanText) as T;
+      } catch (parseErr) {
+        console.error("[gemini] JSON parse failed on raw response:", rawText.slice(0, 500));
+        lastError = new ProviderError(`Gemini returned output that was not valid JSON: ${(parseErr as Error).message}`, undefined, true);
         continue;
       }
 

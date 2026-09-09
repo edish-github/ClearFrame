@@ -239,6 +239,6 @@ export class ClearFrame {
 
 }
 
-/** One instance for the app. The base URL is same-origin; Vite proxies it in dev. */
-export const api = new ClearFrame("");
+/** One instance for the app. The base URL uses VITE_API_URL when set, or same-origin when blank. */
+export const api = new ClearFrame((import.meta as any).env?.VITE_API_URL ?? "");
 
